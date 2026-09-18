@@ -28,7 +28,16 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tymolu233/llm-wiki.git"
+  },
+  "homepage": "https://github.com/tymolu233/llm-wiki#readme",
+  "bugs": {
+    "url": "https://github.com/tymolu233/llm-wiki/issues"
   },
   "keywords": [
     "llm",
@@ -39,7 +48,7 @@
     "mcp",
     "karpathy"
   ],
-  "author": "",
+  "author": "tymolu233",
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^1.8.1",
