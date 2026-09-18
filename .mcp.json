@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "llmwiki": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@tymolu/llmwiki",
+        "mcp"
+      ]
+    }
+  }
+}

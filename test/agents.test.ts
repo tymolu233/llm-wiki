@@ -127,6 +127,24 @@ describe('Multi-Agent Adapter Module', () => {
       expect(parsed.mcpServers.llmwiki).toBeDefined();
     });
 
+    it('generates .mcp.json for Universal Agents (agents / codex / antigravity)', async () => {
+      const created = await configureAgentMcp(tempDir, ['agents']);
+      expect(created).toContain('.mcp.json');
+
+      const content = await fs.readFile(path.join(tempDir, '.mcp.json'), 'utf-8');
+      const parsed = JSON.parse(content);
+      expect(parsed.mcpServers.llmwiki).toBeDefined();
+    });
+
+    it('generates .mcp.json for Gemini CLI', async () => {
+      const created = await configureAgentMcp(tempDir, ['gemini']);
+      expect(created).toContain('.mcp.json');
+
+      const content = await fs.readFile(path.join(tempDir, '.mcp.json'), 'utf-8');
+      const parsed = JSON.parse(content);
+      expect(parsed.mcpServers.llmwiki).toBeDefined();
+    });
+
     it('generates .cline/mcp_settings.json for Cline / Roo Code', async () => {
       const created = await configureAgentMcp(tempDir, ['cline']);
       expect(created).toContain('.cline/mcp_settings.json');
