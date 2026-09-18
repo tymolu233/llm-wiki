@@ -47,4 +47,10 @@ describe('CLI runner', () => {
     // Vault with no notes is clean (0 exit code)
     expect(exitCode).toBe(0);
   });
+
+  it('runs "llmwiki index <path>" and rebuilds index.md', async () => {
+    await runCli(['node', 'llmwiki', 'init', tempDir]);
+    const exitCode = await runCli(['node', 'llmwiki', 'index', tempDir]);
+    expect(exitCode).toBe(0);
+  });
 });

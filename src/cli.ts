@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { initVault } from './core/init.js';
 import { lintVault, formatLintReport } from './core/linter.js';
+import { reconcileIndex } from './core/indexer.js';
 
 export async function runCli(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -50,7 +51,23 @@ export async function runCli(argv: string[]): Promise<number> {
       }
     }
 
-    case 'index':
+    case 'index': {
+      const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
+      try {
+        const stats = await reconcileIndex(targetDir);
+        console.log(`\n📚 Index reconciled for: ${targetDir}`);
+        console.log(`   • Total notes:     ${stats.totalNotes}`);
+        console.log(`   • Concepts:        ${stats.conceptCount}`);
+        console.log(`   • Entities:        ${stats.entityCount}`);
+        console.log(`   • Syntheses:       ${stats.synthesisCount}`);
+        console.log(`   • Status:          ${stats.updated ? 'Updated index.md' : 'Up to date (no changes)'}\n`);
+        return 0;
+      } catch (err: any) {
+        console.error(`❌ Index reconciliation failed: ${err.message}`);
+        return 1;
+      }
+    }
+
     case 'search':
     case 'mcp': {
       console.log(`Command "${command}" will be implemented in subsequent tickets.`);
