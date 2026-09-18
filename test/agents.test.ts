@@ -128,13 +128,14 @@ describe('Multi-Agent Adapter Module', () => {
       expect(parsed.mcpServers.llmwiki).toBeDefined();
     });
 
-    it('generates .vscode/mcp.json for VS Code / GitHub Copilot', async () => {
+    it('generates .vscode/mcp.json for VS Code / GitHub Copilot with servers key', async () => {
       const created = await configureAgentMcp(tempDir, ['copilot']);
       expect(created).toContain('.vscode/mcp.json');
 
       const content = await fs.readFile(path.join(tempDir, '.vscode', 'mcp.json'), 'utf-8');
       const parsed = JSON.parse(content);
-      expect(parsed.mcpServers.llmwiki).toBeDefined();
+      expect(parsed.servers?.llmwiki || parsed.mcpServers?.llmwiki).toBeDefined();
+      expect(parsed.servers?.llmwiki?.type).toBe('stdio');
     });
   });
 });

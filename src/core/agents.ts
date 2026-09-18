@@ -232,11 +232,19 @@ export function mergeMcpConfig(existingContent: string, serverName: string, serv
     config = {};
   }
 
-  if (!config[containerKey] || typeof config[containerKey] !== 'object') {
-    config[containerKey] = {};
+  // Preserve existing container key if present
+  let keyToUse = containerKey;
+  if (containerKey === 'servers' && config.mcpServers && !config.servers) {
+    keyToUse = 'mcpServers';
+  } else if (containerKey === 'mcpServers' && config.servers && !config.mcpServers) {
+    keyToUse = 'servers';
   }
 
-  config[containerKey][serverName] = serverDef;
+  if (!config[keyToUse] || typeof config[keyToUse] !== 'object') {
+    config[keyToUse] = {};
+  }
+
+  config[keyToUse][serverName] = serverDef;
   return JSON.stringify(config, null, 2) + '\n';
 }
 
@@ -251,7 +259,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
     args: ['-y', 'llmwiki', 'mcp'],
   };
 
-  const updateConfigFile = async (relPath: string, containerKey: string = 'mcpServers') => {
+  const updateConfigFile = async (relPath: string, containerKey: string = 'mcpServers', customDef: any = defaultLlmwikiMcpDef) => {
     const fullPath = path.join(vaultDir, relPath);
     let existingContent = '';
     try {
@@ -260,7 +268,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
       existingContent = '';
     }
 
-    const merged = mergeMcpConfig(existingContent, 'llmwiki', defaultLlmwikiMcpDef, containerKey);
+    const merged = mergeMcpConfig(existingContent, 'llmwiki', customDef, containerKey);
     await atomicWriteFile(fullPath, merged);
     updatedFiles.push(relPath);
   };
@@ -278,7 +286,13 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
   }
 
   if (targets.includes('copilot')) {
-    await updateConfigFile('.vscode/mcp.json', 'mcpServers');
+    // Official VS Code MCP configuration uses 'servers' with type 'stdio'
+    const vsCodeMcpDef = {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', 'llmwiki', 'mcp'],
+    };
+    await updateConfigFile('.vscode/mcp.json', 'servers', vsCodeMcpDef);
   }
 
   if (targets.includes('zed')) {
