@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import { initVault } from './core/init.js';
 import { lintVault, formatLintReport } from './core/linter.js';
 import { reconcileIndex } from './core/indexer.js';
+import { searchVault } from './core/search.js';
 
 export async function runCli(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -68,7 +69,41 @@ export async function runCli(argv: string[]): Promise<number> {
       }
     }
 
-    case 'search':
+    case 'search': {
+      const query = args[1];
+      if (!query || query.startsWith('--')) {
+        console.error('❌ Please provide a search query: npx llmwiki search <query>');
+        return 1;
+      }
+
+      const isJson = args.includes('--json');
+      const targetDir = args[2] && !args[2].startsWith('--') ? path.resolve(args[2]) : process.cwd();
+
+      try {
+        const results = await searchVault(targetDir, query);
+        if (isJson) {
+          console.log(JSON.stringify(results, null, 2));
+          return 0;
+        }
+
+        console.log(`\n🔎 Search results for "${query}" (${results.length} found):\n`);
+        if (results.length === 0) {
+          console.log('  No matching notes found.\n');
+          return 0;
+        }
+
+        for (const res of results) {
+          console.log(`  📄 [[${res.title}]] (${res.relativePath})`);
+          console.log(`     Score: ${res.score} | Type: ${res.type}`);
+          console.log(`     "${res.snippet}"\n`);
+        }
+        return 0;
+      } catch (err: any) {
+        console.error(`❌ Search failed: ${err.message}`);
+        return 1;
+      }
+    }
+
     case 'mcp': {
       console.log(`Command "${command}" will be implemented in subsequent tickets.`);
       return 0;

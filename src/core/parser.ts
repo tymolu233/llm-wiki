@@ -120,10 +120,19 @@ export function parseMarkdownNote(relativePath: string, rawContent: string): Par
     content = rawContent;
   }
 
-  // Infer title
-  const title = frontmatter.title && typeof frontmatter.title === 'string'
+  // Infer title from frontmatter, first # H1 header, or basename
+  let title = frontmatter.title && typeof frontmatter.title === 'string'
     ? frontmatter.title.trim()
-    : basename;
+    : '';
+
+  if (!title) {
+    const firstH1Match = content.match(/^#\s+([^\r\n]+)/m);
+    if (firstH1Match) {
+      title = firstH1Match[1].trim();
+    } else {
+      title = basename;
+    }
+  }
 
   // Infer type
   let type: 'entity' | 'concept' | 'synthesis' | 'unknown' = 'unknown';

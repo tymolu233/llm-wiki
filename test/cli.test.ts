@@ -53,4 +53,15 @@ describe('CLI runner', () => {
     const exitCode = await runCli(['node', 'llmwiki', 'index', tempDir]);
     expect(exitCode).toBe(0);
   });
+
+  it('runs "llmwiki search <query>" and prints results', async () => {
+    await runCli(['node', 'llmwiki', 'init', tempDir]);
+    await fs.writeFile(path.join(tempDir, 'wiki', 'concepts', 'Raft.md'), '# Raft\nConsensus algorithm.', 'utf-8');
+
+    const exitCode = await runCli(['node', 'llmwiki', 'search', 'Raft', tempDir]);
+    expect(exitCode).toBe(0);
+
+    const jsonExitCode = await runCli(['node', 'llmwiki', 'search', 'Raft', tempDir, '--json']);
+    expect(jsonExitCode).toBe(0);
+  });
 });

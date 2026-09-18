@@ -4,3 +4,4 @@ export * from './core/parser.js';
 export * from './core/graph.js';
 export * from './core/linter.js';
 export * from './core/indexer.js';
+export * from './core/search.js';
