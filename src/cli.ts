@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { initVault } from './core/init.js';
+import { lintVault, formatLintReport } from './core/linter.js';
 
 export async function runCli(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -36,8 +37,20 @@ export async function runCli(argv: string[]): Promise<number> {
       }
     }
 
+    case 'lint': {
+      const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
+      try {
+        const report = await lintVault(targetDir);
+        console.log(formatLintReport(report));
+        const errors = report.issues.filter((i) => i.severity === 'error');
+        return errors.length > 0 ? 1 : 0;
+      } catch (err: any) {
+        console.error(`❌ Lint failed: ${err.message}`);
+        return 1;
+      }
+    }
+
     case 'index':
-    case 'lint':
     case 'search':
     case 'mcp': {
       console.log(`Command "${command}" will be implemented in subsequent tickets.`);

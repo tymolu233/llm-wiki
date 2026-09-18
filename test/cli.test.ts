@@ -40,4 +40,11 @@ describe('CLI runner', () => {
     const exitCode = await runCli(['node', 'llmwiki', 'nonexistent-cmd']);
     expect(exitCode).toBe(1);
   });
+
+  it('runs "llmwiki lint <path>" and detects issues or success', async () => {
+    await runCli(['node', 'llmwiki', 'init', tempDir]);
+    const exitCode = await runCli(['node', 'llmwiki', 'lint', tempDir]);
+    // Vault with no notes is clean (0 exit code)
+    expect(exitCode).toBe(0);
+  });
 });
