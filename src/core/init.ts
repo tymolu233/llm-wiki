@@ -1,0 +1,126 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { atomicWriteFile } from './storage.js';
+
+export interface InitOptions {
+  vaultDir: string;
+  force?: boolean;
+}
+
+export interface InitResult {
+  vaultDir: string;
+  createdFiles: string[];
+  skippedFiles: string[];
+}
+
+export const INDEX_MARKER_START = '<!-- LLMWIKI_INDEX_START -->';
+export const INDEX_MARKER_END = '<!-- LLMWIKI_INDEX_END -->';
+
+export async function initVault(options: InitOptions): Promise<InitResult> {
+  const vaultDir = path.resolve(options.vaultDir);
+  const createdFiles: string[] = [];
+  const skippedFiles: string[] = [];
+
+  // 1. Create required directories
+  const directories = [
+    path.join(vaultDir, 'raw'),
+    path.join(vaultDir, 'wiki', 'entities'),
+    path.join(vaultDir, 'wiki', 'concepts'),
+    path.join(vaultDir, 'wiki', 'syntheses'),
+  ];
+
+  for (const dir of directories) {
+    await fs.mkdir(dir, { recursive: true });
+  }
+
+  // Helper to safely write a file if it doesn't already exist
+  const maybeCreateFile = async (relativePath: string, content: string) => {
+    const fullPath = path.join(vaultDir, relativePath);
+    try {
+      await fs.access(fullPath);
+      // File already exists
+      if (!options.force) {
+        skippedFiles.push(relativePath);
+        return;
+      }
+    } catch {
+      // File does not exist, proceed
+    }
+
+    await atomicWriteFile(fullPath, content);
+    createdFiles.push(relativePath);
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 2. Default index.md
+  const defaultIndex = `# Wiki Index
+
+Welcome to your LLM Wiki. This index is maintained automatically by \`llmwiki\` and compiled by AI agents.
+
+${INDEX_MARKER_START}
+## Concepts
+
+_No concepts indexed yet._
+
+## Entities
+
+_No entities indexed yet._
+
+## Syntheses
+
+_No syntheses indexed yet._
+${INDEX_MARKER_END}
+`;
+
+  // 3. Default log.md
+  const defaultLog = `# Wiki Log
+
+Append-only chronological audit trail of all knowledge base operations.
+
+## [${today}] init | Vault initialized
+- Scaffolded directory structure (\`raw/\`, \`wiki/entities/\`, \`wiki/concepts/\`, \`wiki/syntheses/\`)
+- Generated index.md, log.md, AGENTS.md, CLAUDE.md
+`;
+
+  // 4. Default AGENTS.md & CLAUDE.md
+  const defaultAgentRules = `# LLM Wiki Librarian Guidelines
+
+You are the maintainer and curator of this personal knowledge base.
+
+## Core Principles
+
+1. **Raw Sources Are Immutable**: Never modify, delete, or rewrite files in \`raw/\`. They are the ground truth.
+2. **Compile at Ingest Time**: When a new source is provided, do not just summarize it in chat. Compile it into persistent markdown notes:
+   - Extract atomic ideas into \`wiki/concepts/<Concept Name>.md\`
+   - Extract real-world people, organizations, tools into \`wiki/entities/<Entity Name>.md\`
+   - Create comparative or overarching reports in \`wiki/syntheses/<Synthesis Title>.md\`
+3. **Cross-Reference Aggressively**: Always link related notes using standard \`[[Note Title]]\` syntax.
+4. **Note Frontmatter Standard**:
+   \`\`\`yaml
+   ---
+   title: "Note Title"
+   type: concept # concept | entity | synthesis
+   aliases: []
+   tags: []
+   sources: ["raw/filename.md"]
+   last_updated: ${today}
+   ---
+   \`\`\`
+5. **Bookkeeping**:
+   - Run \`npx llmwiki index\` after writing notes to synchronize the catalog.
+   - Append an entry to \`log.md\` using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
+   - Run \`npx llmwiki lint\` to detect and resolve orphan notes or broken links.
+`;
+
+  await maybeCreateFile('index.md', defaultIndex);
+  await maybeCreateFile('log.md', defaultLog);
+  await maybeCreateFile('AGENTS.md', defaultAgentRules);
+  await maybeCreateFile('CLAUDE.md', defaultAgentRules);
+
+  return {
+    vaultDir,
+    createdFiles,
+    skippedFiles,
+  };
+}

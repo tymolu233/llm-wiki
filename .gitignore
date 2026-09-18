@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# References (external cloned repos)
+references/
+.references/
+
+# Logs & temp
+*.log
+.DS_Store
+Thumbs.db
