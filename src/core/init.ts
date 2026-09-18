@@ -15,6 +15,7 @@ export interface InitOptions {
   agents?: AgentTarget[];
   allAgents?: boolean;
   configureMcp?: boolean;
+  rootIndex?: boolean;
 }
 
 export interface InitResult {
@@ -86,6 +87,9 @@ _No syntheses indexed yet._
 ${INDEX_MARKER_END}
 `;
 
+  const indexRelPath = options.rootIndex ? 'index.md' : path.join('wiki', 'index.md');
+  const logRelPath = options.rootIndex ? 'log.md' : path.join('wiki', 'log.md');
+
   // 3. Default log.md
   const defaultLog = `# Wiki Log
 
@@ -93,7 +97,7 @@ Append-only chronological audit trail of all knowledge base operations.
 
 ## [${today}] init | Vault initialized
 - Scaffolded directory structure (\`raw/\`, \`wiki/entities/\`, \`wiki/concepts/\`, \`wiki/syntheses/\`)
-- Generated index.md, log.md, AGENTS.md, CLAUDE.md
+- Generated ${indexRelPath.replace(/\\/g, '/')}, ${logRelPath.replace(/\\/g, '/')}, and agent configurations
 `;
 
   // 4. Resolve target agents
@@ -103,8 +107,8 @@ Append-only chronological audit trail of all knowledge base operations.
     ? options.agents
     : await detectAgentEnvironments(vaultDir);
 
-  await maybeCreateFile('index.md', defaultIndex);
-  await maybeCreateFile('log.md', defaultLog);
+  await maybeCreateFile(indexRelPath, defaultIndex);
+  await maybeCreateFile(logRelPath, defaultLog);
 
   // Configure agent rules
   const rulesResult = await configureAgentRules(vaultDir, targets);

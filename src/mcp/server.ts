@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import matter from 'gray-matter';
-import { atomicWriteFile, assertPathContained, safeReadFile } from '../core/storage.js';
+import { atomicWriteFile, assertPathContained, safeReadFile, resolveIndexPath, resolveLogPath } from '../core/storage.js';
 import { reconcileIndex } from '../core/indexer.js';
 import { searchVault } from '../core/search.js';
 import { lintVault, formatLintReport } from '../core/linter.js';
@@ -22,7 +22,7 @@ export function createMcpServer(vaultDir: string): McpServer {
     'Read the catalog index of the wiki, summarizing concepts, entities, and syntheses with backlink counts.',
     {},
     async () => {
-      const indexPath = path.join(vaultDir, 'index.md');
+      const indexPath = await resolveIndexPath(vaultDir);
       try {
         const content = await fs.readFile(indexPath, 'utf-8');
         return {
@@ -189,7 +189,7 @@ export function createMcpServer(vaultDir: string): McpServer {
       details: z.array(z.string()).optional().describe('List of bullet points detailing changes made'),
     },
     async ({ operation, title, details }) => {
-      const logPath = path.join(vaultDir, 'log.md');
+      const logPath = await resolveLogPath(vaultDir);
       const today = new Date().toISOString().slice(0, 10);
 
       let logEntry = `\n## [${today}] ${operation.trim()} | ${title.trim()}\n`;

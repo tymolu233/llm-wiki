@@ -75,6 +75,9 @@ npx llmwiki init --all
 # Specify exact agents non-interactively
 npx llmwiki init --agent cursor,claude
 
+# Place index.md and log.md in vault root (optional fallback)
+npx llmwiki init --root-index
+
 # Skip MCP server configuration
 npx llmwiki init --agent claude --no-mcp
 
@@ -86,12 +89,12 @@ This scaffolds:
 ```
 my-vault/
 ├── raw/                 # Immutable source documents (curated by you)
-├── wiki/                # Persistent network of compiled markdown notes
+├── wiki/                # Self-contained knowledge base
+│   ├── index.md         # Categorized catalog index with backlink stats
+│   ├── log.md           # Append-only chronological audit trail
 │   ├── entities/        # People, tools, organizations, products
 │   ├── concepts/        # Abstract models, core theories
 │   └── syntheses/       # Deep comparative summaries and Q&A answers
-├── index.md             # Categorized catalog index with backlink stats
-├── log.md               # Append-only chronological audit log
 ├── AGENTS.md / CLAUDE.md# Safely adapted librarian rules for your AI Agent
 └── .cursor/ / .mcp.json # Auto-configured project MCP settings
 ```

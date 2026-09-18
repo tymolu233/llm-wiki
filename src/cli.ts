@@ -43,6 +43,7 @@ export async function runCli(argv: string[]): Promise<number> {
       let isYes = false;
       let noMcp = false;
       let force = false;
+      let rootIndex = false;
       let agentList: AgentTarget[] | undefined;
 
       for (let i = 1; i < args.length; i++) {
@@ -55,6 +56,8 @@ export async function runCli(argv: string[]): Promise<number> {
           noMcp = true;
         } else if (arg === '--force' || arg === '-f') {
           force = true;
+        } else if (arg === '--root-index') {
+          rootIndex = true;
         } else if (arg === '--agent' || arg === '-a') {
           const next = args[++i];
           if (next) {
@@ -146,6 +149,7 @@ export async function runCli(argv: string[]): Promise<number> {
             force,
             agents: selectedList,
             configureMcp: setupMcp,
+            rootIndex,
           });
 
           s.stop(pc.green('Vault initialized and agent protocols configured!'));
@@ -192,6 +196,7 @@ export async function runCli(argv: string[]): Promise<number> {
             agents: agentList,
             allAgents: isAll,
             configureMcp: !noMcp,
+            rootIndex,
           });
 
           for (const file of result.createdFiles) {
@@ -320,6 +325,7 @@ Options for 'init':
   --all                 Configure rules and MCP for all supported agents
   -a, --agent <agents>  Comma-separated list (cursor,claude,agents,cline,copilot,windsurf,gemini,zed)
   --no-mcp              Skip MCP server configuration
+  --root-index          Place index.md and log.md in vault root instead of wiki/
   -f, --force           Overwrite default index.md and log.md if already present
 
 Global Options:

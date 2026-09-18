@@ -22,8 +22,20 @@ describe('CLI runner', () => {
     const existsRaw = await fs.stat(path.join(tempDir, 'raw'));
     expect(existsRaw.isDirectory()).toBe(true);
 
+    const existsIndex = await fs.stat(path.join(tempDir, 'wiki', 'index.md'));
+    expect(existsIndex.isFile()).toBe(true);
+    const existsLog = await fs.stat(path.join(tempDir, 'wiki', 'log.md'));
+    expect(existsLog.isFile()).toBe(true);
+  });
+
+  it('runs "llmwiki init <path> --root-index" and places index.md and log.md in root', async () => {
+    const exitCode = await runCli(['node', 'llmwiki', 'init', tempDir, '--root-index']);
+    expect(exitCode).toBe(0);
+
     const existsIndex = await fs.stat(path.join(tempDir, 'index.md'));
     expect(existsIndex.isFile()).toBe(true);
+    const existsLog = await fs.stat(path.join(tempDir, 'log.md'));
+    expect(existsLog.isFile()).toBe(true);
   });
 
   it('prints help when called with --help', async () => {

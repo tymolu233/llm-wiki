@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { buildVaultGraph, NoteNode } from './graph.js';
-import { atomicWriteFile } from './storage.js';
+import { atomicWriteFile, resolveIndexPath } from './storage.js';
 import { INDEX_MARKER_START, INDEX_MARKER_END } from './init.js';
 
 export interface IndexerStats {
@@ -19,7 +19,7 @@ export interface IndexerStats {
  */
 export async function reconcileIndex(vaultDir: string): Promise<IndexerStats> {
   const graph = await buildVaultGraph(vaultDir);
-  const indexPath = path.join(vaultDir, 'index.md');
+  const indexPath = await resolveIndexPath(vaultDir);
 
   let existingContent = '';
   try {

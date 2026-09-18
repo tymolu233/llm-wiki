@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { reconcileIndex } from '../src/core/indexer.js';
 import { initVault, INDEX_MARKER_START, INDEX_MARKER_END } from '../src/core/init.js';
+import { resolveIndexPath } from '../src/core/storage.js';
 
 describe('Catalog Index Reconciler', () => {
   let tempDir: string;
@@ -63,7 +64,8 @@ Compares [[Raft]] and Paxos.`,
     expect(result.entityCount).toBe(1);
     expect(result.synthesisCount).toBe(1);
 
-    const indexContent = await fs.readFile(path.join(tempDir, 'index.md'), 'utf-8');
+    const indexPath = await resolveIndexPath(tempDir);
+    const indexContent = await fs.readFile(indexPath, 'utf-8');
 
     // Check Raft in Concepts table with 2 backlinks (etcd + consensus-survey)
     expect(indexContent).toContain('| [[Raft]] | Consensus algorithm designed for understandability | 2 | 2026-04-01 |');
@@ -76,11 +78,12 @@ Compares [[Raft]] and Paxos.`,
   });
 
   it('preserves custom user content outside markers', async () => {
+    const indexPath = await resolveIndexPath(tempDir);
     const customHeader = `# My Personal Knowledge Base\n\n> "Knowledge is compound interest." - Naval Ravikant\n\nHere are my favorite pinned topics.\n\n`;
     const customFooter = `\n\n## Custom Notes Section\n- Remember to backup weekly.\n`;
 
     const customIndex = `${customHeader}${INDEX_MARKER_START}\nold stuff\n${INDEX_MARKER_END}${customFooter}`;
-    await fs.writeFile(path.join(tempDir, 'index.md'), customIndex, 'utf-8');
+    await fs.writeFile(indexPath, customIndex, 'utf-8');
 
     await fs.writeFile(
       path.join(tempDir, 'wiki', 'concepts', 'AI.md'),
@@ -95,7 +98,7 @@ Content.`,
 
     await reconcileIndex(tempDir);
 
-    const updatedIndex = await fs.readFile(path.join(tempDir, 'index.md'), 'utf-8');
+    const updatedIndex = await fs.readFile(indexPath, 'utf-8');
     expect(updatedIndex).toContain(customHeader.trim());
     expect(updatedIndex).toContain(customFooter.trim());
     expect(updatedIndex).toContain('[[Artificial Intelligence]]');
@@ -108,12 +111,38 @@ Content.`,
       'utf-8'
     );
 
+    const indexPath = await resolveIndexPath(tempDir);
     await reconcileIndex(tempDir);
-    const firstRun = await fs.readFile(path.join(tempDir, 'index.md'), 'utf-8');
+    const firstRun = await fs.readFile(indexPath, 'utf-8');
 
     await reconcileIndex(tempDir);
-    const secondRun = await fs.readFile(path.join(tempDir, 'index.md'), 'utf-8');
+    const secondRun = await fs.readFile(indexPath, 'utf-8');
 
     expect(firstRun).toBe(secondRun);
+  });
+
+  it('falls back to root index.md if present and updates it', async () => {
+    const legacyDir = await fs.mkdtemp(path.join(os.tmpdir(), 'llmwiki-legacy-'));
+    try {
+      await fs.mkdir(path.join(legacyDir, 'wiki', 'concepts'), { recursive: true });
+      await fs.writeFile(
+        path.join(legacyDir, 'index.md'),
+        `# Root Index\n${INDEX_MARKER_START}\n${INDEX_MARKER_END}\n`,
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(legacyDir, 'wiki', 'concepts', 'Legacy.md'),
+        '---\ntitle: "Legacy"\ntype: concept\nsummary: "Legacy concept"\n---\nBody',
+        'utf-8'
+      );
+
+      const stats = await reconcileIndex(legacyDir);
+      expect(stats.totalNotes).toBe(1);
+
+      const rootContent = await fs.readFile(path.join(legacyDir, 'index.md'), 'utf-8');
+      expect(rootContent).toContain('| [[Legacy]] | Legacy concept | 0 |');
+    } finally {
+      await fs.rm(legacyDir, { recursive: true, force: true });
+    }
   });
 });

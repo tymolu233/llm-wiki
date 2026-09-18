@@ -37,6 +37,9 @@ export async function scanMarkdownFiles(dir: string, baseDir: string = dir): Pro
         const subFiles = await scanMarkdownFiles(fullPath, baseDir);
         results.push(...subFiles);
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        if (entry.name === 'index.md' || entry.name === 'log.md') {
+          continue;
+        }
         const relative = path.relative(baseDir, fullPath).replace(/\\/g, '/');
         results.push(relative);
       }

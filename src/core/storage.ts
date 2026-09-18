@@ -50,3 +50,45 @@ export async function safeReadFile(baseDir: string, relativePath: string): Promi
   const targetPath = assertPathContained(baseDir, relativePath);
   return await fs.readFile(targetPath, 'utf-8');
 }
+
+/**
+ * Resolves the location of index.md, checking wiki/index.md first,
+ * then falling back to root index.md if it exists.
+ * Defaults to wiki/index.md for a clean project root.
+ */
+export async function resolveIndexPath(vaultDir: string): Promise<string> {
+  const wikiIndex = path.join(vaultDir, 'wiki', 'index.md');
+  try {
+    await fs.access(wikiIndex);
+    return wikiIndex;
+  } catch {
+    const rootIndex = path.join(vaultDir, 'index.md');
+    try {
+      await fs.access(rootIndex);
+      return rootIndex;
+    } catch {
+      return wikiIndex;
+    }
+  }
+}
+
+/**
+ * Resolves the location of log.md, checking wiki/log.md first,
+ * then falling back to root log.md if it exists.
+ * Defaults to wiki/log.md for a clean project root.
+ */
+export async function resolveLogPath(vaultDir: string): Promise<string> {
+  const wikiLog = path.join(vaultDir, 'wiki', 'log.md');
+  try {
+    await fs.access(wikiLog);
+    return wikiLog;
+  } catch {
+    const rootLog = path.join(vaultDir, 'log.md');
+    try {
+      await fs.access(rootLog);
+      return rootLog;
+    } catch {
+      return wikiLog;
+    }
+  }
+}

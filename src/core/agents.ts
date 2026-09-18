@@ -123,9 +123,9 @@ You are the maintainer and curator of this repository's LLM Wiki (based on Andre
    ---
    \`\`\`
 6. **Bookkeeping & Health**:
-   - Query: Consult \`index.md\` or use MCP \`wiki_read_index\` / \`wiki_search\` first, then drill into pages with \`wiki_read_note\`.
-   - Write: Use MCP tool \`wiki_write_note\` (or write markdown) and run \`npx llmwiki index\` to keep \`index.md\` updated.
-   - Audit Trail: Always append an entry to \`log.md\` using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
+   - Query: Consult \`wiki/index.md\` (or \`index.md\`) or use MCP \`wiki_read_index\` / \`wiki_search\` first, then drill into pages with \`wiki_read_note\`.
+   - Write: Use MCP tool \`wiki_write_note\` (or write markdown) and run \`npx llmwiki index\` to keep index updated.
+   - Audit Trail: Always append an entry to \`wiki/log.md\` (or \`log.md\`) using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
    - Quality: Run \`npx llmwiki lint\` (or MCP \`wiki_lint\`) to detect and resolve orphan notes or broken links.
 `;
 

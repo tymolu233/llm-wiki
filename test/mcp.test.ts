@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../src/mcp/server.js';
 import { initVault } from '../src/core/init.js';
+import { resolveLogPath } from '../src/core/storage.js';
 
 describe('MCP Server Module', () => {
   let tempDir: string;
@@ -113,7 +114,8 @@ describe('MCP Server Module', () => {
     });
     expect(logRes.isError).toBeFalsy();
 
-    const logFile = await fs.readFile(path.join(tempDir, 'log.md'), 'utf-8');
+    const logPath = await resolveLogPath(tempDir);
+    const logFile = await fs.readFile(logPath, 'utf-8');
     expect(logFile).toContain('BFT Research Paper');
     expect(logFile).toContain('- Extracted BFT definition');
 

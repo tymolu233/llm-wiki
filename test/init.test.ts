@@ -34,13 +34,13 @@ describe('Vault Initialization Module', () => {
     const synthesesStat = await fs.stat(path.join(tempDir, 'wiki', 'syntheses'));
     expect(synthesesStat.isDirectory()).toBe(true);
 
-    // Verify index.md has marker comments
-    const indexContent = await fs.readFile(path.join(tempDir, 'index.md'), 'utf-8');
+    // Verify index.md has marker comments inside wiki/
+    const indexContent = await fs.readFile(path.join(tempDir, 'wiki', 'index.md'), 'utf-8');
     expect(indexContent).toContain('<!-- LLMWIKI_INDEX_START -->');
     expect(indexContent).toContain('<!-- LLMWIKI_INDEX_END -->');
 
-    // Verify log.md has initial entry
-    const logContent = await fs.readFile(path.join(tempDir, 'log.md'), 'utf-8');
+    // Verify log.md has initial entry inside wiki/
+    const logContent = await fs.readFile(path.join(tempDir, 'wiki', 'log.md'), 'utf-8');
     expect(logContent).toMatch(/^## \[\d{4}-\d{2}-\d{2}\] init \| Vault initialized/m);
 
     // Verify AGENTS.md and CLAUDE.md exist with instructions
@@ -49,6 +49,17 @@ describe('Vault Initialization Module', () => {
 
     const claudeContent = await fs.readFile(path.join(tempDir, 'CLAUDE.md'), 'utf-8');
     expect(claudeContent).toContain('LLM Wiki Librarian');
+  });
+
+  it('supports rootIndex option to place index.md and log.md in root', async () => {
+    const result = await initVault({ vaultDir: tempDir, rootIndex: true });
+    expect(result.createdFiles).toContain('index.md');
+    expect(result.createdFiles).toContain('log.md');
+
+    const indexStat = await fs.stat(path.join(tempDir, 'index.md'));
+    expect(indexStat.isFile()).toBe(true);
+    const logStat = await fs.stat(path.join(tempDir, 'log.md'));
+    expect(logStat.isFile()).toBe(true);
   });
 
   it('is idempotent and non-destructively preserves existing files', async () => {
