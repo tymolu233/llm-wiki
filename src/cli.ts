@@ -265,7 +265,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case 'search': {
       const query = args[1];
       if (!query || query.startsWith('--')) {
-        console.error(pc.red('Error: Please provide a search query: npx llmwiki search <query>'));
+        console.error(pc.red('Error: Please provide a search query: npx @tymolu/llmwiki search <query>'));
         return 1;
       }
 
@@ -321,7 +321,7 @@ function printHelp() {
 llmwiki - Agent-First personal knowledge base engine
 
 Usage:
-  npx llmwiki <command> [options]
+  npx @tymolu/llmwiki <command> [options]
 
 Commands:
   init [path]     Scaffold a new LLM Wiki vault and adapt agent rules (defaults to cwd)

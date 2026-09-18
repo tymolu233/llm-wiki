@@ -115,7 +115,7 @@ describe('Multi-Agent Adapter Module', () => {
       expect(parsed.mcpServers.otherTool).toBeDefined();
       // Should add llmwiki
       expect(parsed.mcpServers.llmwiki).toBeDefined();
-      expect(parsed.mcpServers.llmwiki.args).toEqual(['-y', 'llmwiki', 'mcp']);
+      expect(parsed.mcpServers.llmwiki.args).toEqual(['-y', '@tymolu/llmwiki', 'mcp']);
     });
 
     it('generates .mcp.json for Claude Code', async () => {

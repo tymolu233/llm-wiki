@@ -264,7 +264,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
 
   const defaultLlmwikiMcpDef = {
     command: 'npx',
-    args: ['-y', 'llmwiki', 'mcp'],
+    args: ['-y', '@tymolu/llmwiki', 'mcp'],
   };
 
   const updateConfigFile = async (relPath: string, containerKey: string = 'mcpServers', customDef: any = defaultLlmwikiMcpDef) => {
@@ -298,7 +298,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
     const vsCodeMcpDef = {
       type: 'stdio',
       command: 'npx',
-      args: ['-y', 'llmwiki', 'mcp'],
+      args: ['-y', '@tymolu/llmwiki', 'mcp'],
     };
     await updateConfigFile('.vscode/mcp.json', 'servers', vsCodeMcpDef);
   }

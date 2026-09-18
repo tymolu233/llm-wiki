@@ -4,7 +4,7 @@
 > *"Stop Retrieving, Start Compiling."* Persistent, compounding wikis compiled by AI agents, browsed in Obsidian, VS Code, or any markdown editor.
 
 [![CI](https://github.com/tymolu233/llm-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/tymolu233/llm-wiki/actions)
-[![npm version](https://img.shields.io/npm/v/llmwiki.svg)](https://www.npmjs.com/package/llmwiki)
+[![npm version](https://img.shields.io/npm/v/@tymolu/llmwiki.svg)](https://www.npmjs.com/package/@tymolu/llmwiki)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -25,7 +25,7 @@ Most document Q&A tools use stateless **RAG** (Retrieval-Augmented Generation): 
 
 - **🚀 Zero Configuration (Agent-First)**: No API keys to configure, no LLM provider lock-in, zero billing overhead. `llmwiki` relies directly on the intelligence of whatever AI coding agent you already use.
 - **⚡ Single Package, Multi-Surface**:
-  - **CLI Surface**: `npx llmwiki init / index / lint / search`
+  - **CLI Surface**: `npx @tymolu/llmwiki init / index / lint / search`
   - **MCP Surface**: Standard stdio Model Context Protocol server exposing 6 atomic tools directly to agents.
   - **Skill Surface**: Pre-bundled librarian guidelines (`AGENTS.md` and `CLAUDE.md`).
 - **🌐 Open Markdown Vault**: 100% standard CommonMark files. Open it in Obsidian for the graph view, edit it in VS Code/Cursor, or browse it on GitHub. Zero proprietary plugins required.
@@ -41,7 +41,7 @@ Most document Q&A tools use stateless **RAG** (Retrieval-Augmented Generation): 
 In your project or notes directory:
 
 ```bash
-npx llmwiki init
+npx @tymolu/llmwiki init
 ```
 
 In interactive terminals (TTY), `llmwiki` presents a rich selection prompt (powered by `@clack/prompts`, similar to `npx skills add`) allowing you to select which agents to configure:
@@ -70,19 +70,19 @@ In interactive terminals (TTY), `llmwiki` presents a rich selection prompt (powe
 #### Non-Interactive / CI Flags:
 ```bash
 # Configure all supported agents and MCP configurations automatically
-npx llmwiki init --all
+npx @tymolu/llmwiki init --all
 
 # Specify exact agents non-interactively
-npx llmwiki init --agent cursor,claude
+npx @tymolu/llmwiki init --agent cursor,claude
 
 # Place index.md and log.md in vault root (optional fallback)
-npx llmwiki init --root-index
+npx @tymolu/llmwiki init --root-index
 
 # Skip MCP server configuration
-npx llmwiki init --agent claude --no-mcp
+npx @tymolu/llmwiki init --agent claude --no-mcp
 
 # Accept auto-detected defaults silently
-npx llmwiki init -y
+npx @tymolu/llmwiki init -y
 ```
 
 This scaffolds:
@@ -105,7 +105,7 @@ If you didn't auto-configure MCP during `init`, you can add it at any time:
 
 #### Claude Code:
 ```bash
-claude mcp add llmwiki -- npx -y llmwiki mcp
+claude mcp add llmwiki -- npx -y @tymolu/llmwiki mcp
 ```
 
 #### Cursor (`.cursor/mcp.json`):
@@ -114,7 +114,7 @@ claude mcp add llmwiki -- npx -y llmwiki mcp
   "mcpServers": {
     "llmwiki": {
       "command": "npx",
-      "args": ["-y", "llmwiki", "mcp"]
+      "args": ["-y", "@tymolu/llmwiki", "mcp"]
     }
   }
 }
@@ -126,7 +126,7 @@ claude mcp add llmwiki -- npx -y llmwiki mcp
   "mcpServers": {
     "llmwiki": {
       "command": "npx",
-      "args": ["-y", "llmwiki", "mcp", "/absolute/path/to/vault"]
+      "args": ["-y", "@tymolu/llmwiki", "mcp", "/absolute/path/to/vault"]
     }
   }
 }
@@ -138,20 +138,20 @@ claude mcp add llmwiki -- npx -y llmwiki mcp
 
 ```bash
 # Initialize a new vault
-npx llmwiki init [path]
+npx @tymolu/llmwiki init [path]
 
 # Rebuild catalog index.md (non-destructively preserves your custom notes)
-npx llmwiki index [path]
+npx @tymolu/llmwiki index [path]
 
 # Audit vault health (detects broken [[links]], orphan notes, case-mismatches)
-npx llmwiki lint [path]
+npx @tymolu/llmwiki lint [path]
 
 # Search vault notes with highlighted context snippets
-npx llmwiki search "query" [path]
-npx llmwiki search "query" --json
+npx @tymolu/llmwiki search "query" [path]
+npx @tymolu/llmwiki search "query" --json
 
 # Start stdio MCP server
-npx llmwiki mcp [path]
+npx @tymolu/llmwiki mcp [path]
 ```
 
 ---
