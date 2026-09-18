@@ -100,16 +100,18 @@ export async function configureAgentRules(
 
   const librarianSectionHeading = '## LLM Wiki Librarian';
   const librarianSectionBody = `
-You are the maintainer and curator of this repository's LLM Wiki.
+You are the maintainer and curator of this repository's LLM Wiki (based on Andrej Karpathy's LLM Wiki pattern).
 
 ### Core Principles
 1. **Raw Sources Are Immutable**: Never modify, delete, or rewrite files in \`raw/\`. They are the ground truth.
-2. **Compile at Ingest Time**: When a new source is provided, compile it into persistent markdown notes:
-   - Atomic concepts go into \`wiki/concepts/<Concept Name>.md\`
-   - Real-world entities (people, tools, companies) go into \`wiki/entities/<Entity Name>.md\`
-   - Comparative surveys or Q&A conclusions go into \`wiki/syntheses/<Synthesis Title>.md\`
-3. **Cross-Reference Aggressively**: Always link related notes using standard \`[[Note Title]]\` syntax.
-4. **Frontmatter Standard**:
+2. **Compile at Ingest Time**: When a new source is provided, compile it into persistent markdown notes rather than only answering in chat:
+   - Atomic principles & models -> \`wiki/concepts/<Concept Name>.md\`
+   - Real-world entities (tools, people, organizations) -> \`wiki/entities/<Entity Name>.md\`
+   - Overarching summaries & comparisons -> \`wiki/syntheses/<Synthesis Title>.md\`
+   - **Update Existing Notes**: Don't just create new notes—revise existing pages if the new source adds context, resolves discrepancies, or contradicts older claims.
+3. **Cross-Reference Aggressively**: Always link related notes using standard Obsidian \`[[Note Title]]\` wikilinks.
+4. **Compound Good Answers**: When answering complex questions or comparative queries, file valuable conclusions back into \`wiki/syntheses/<Title>.md\` so explorations compound in the wiki.
+5. **Frontmatter Standard**:
    \`\`\`yaml
    ---
    title: "Note Title"
@@ -120,10 +122,11 @@ You are the maintainer and curator of this repository's LLM Wiki.
    last_updated: ${today}
    ---
    \`\`\`
-5. **Bookkeeping**:
-   - Use MCP tool \`wiki_write_note\` or run \`npx llmwiki index\` to keep \`index.md\` updated.
-   - Always append an entry to \`log.md\` using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
-   - Run \`npx llmwiki lint\` to detect and resolve orphan notes or broken links.
+6. **Bookkeeping & Health**:
+   - Query: Consult \`index.md\` or use MCP \`wiki_read_index\` / \`wiki_search\` first, then drill into pages with \`wiki_read_note\`.
+   - Write: Use MCP tool \`wiki_write_note\` (or write markdown) and run \`npx llmwiki index\` to keep \`index.md\` updated.
+   - Audit Trail: Always append an entry to \`log.md\` using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
+   - Quality: Run \`npx llmwiki lint\` (or MCP \`wiki_lint\`) to detect and resolve orphan notes or broken links.
 `;
 
   const safeAppend = async (relPath: string, fileDefaultTitle: string) => {

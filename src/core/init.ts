@@ -96,36 +96,6 @@ Append-only chronological audit trail of all knowledge base operations.
 - Generated index.md, log.md, AGENTS.md, CLAUDE.md
 `;
 
-  // 4. Default AGENTS.md & CLAUDE.md
-  const defaultAgentRules = `# LLM Wiki Librarian Guidelines
-
-You are the maintainer and curator of this personal knowledge base.
-
-## Core Principles
-
-1. **Raw Sources Are Immutable**: Never modify, delete, or rewrite files in \`raw/\`. They are the ground truth.
-2. **Compile at Ingest Time**: When a new source is provided, do not just summarize it in chat. Compile it into persistent markdown notes:
-   - Extract atomic ideas into \`wiki/concepts/<Concept Name>.md\`
-   - Extract real-world people, organizations, tools into \`wiki/entities/<Entity Name>.md\`
-   - Create comparative or overarching reports in \`wiki/syntheses/<Synthesis Title>.md\`
-3. **Cross-Reference Aggressively**: Always link related notes using standard \`[[Note Title]]\` syntax.
-4. **Note Frontmatter Standard**:
-   \`\`\`yaml
-   ---
-   title: "Note Title"
-   type: concept # concept | entity | synthesis
-   aliases: []
-   tags: []
-   sources: ["raw/filename.md"]
-   last_updated: ${today}
-   ---
-   \`\`\`
-5. **Bookkeeping**:
-   - Run \`npx llmwiki index\` after writing notes to synchronize the catalog.
-   - Append an entry to \`log.md\` using format: \`## [YYYY-MM-DD] <operation> | <Target>\`
-   - Run \`npx llmwiki lint\` to detect and resolve orphan notes or broken links.
-`;
-
   // 4. Resolve target agents
   const targets: AgentTarget[] = options.allAgents
     ? ALL_AGENTS
