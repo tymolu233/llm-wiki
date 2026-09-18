@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
@@ -7,6 +8,15 @@ import { reconcileIndex } from './core/indexer.js';
 import { searchVault } from './core/search.js';
 import { startMcpServer } from './mcp/server.js';
 import { ALL_AGENT_INFOS, ALL_AGENTS, AgentTarget, detectAgentEnvironments } from './core/agents.js';
+
+function getPackageVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+    return pkg.version || '0.1.0';
+  } catch {
+    return '0.1.0';
+  }
+}
 
 export function renderBanner(): void {
   const banner = [
@@ -32,7 +42,7 @@ export async function runCli(argv: string[]): Promise<number> {
   }
 
   if (command === '--version' || command === '-v') {
-    console.log('llmwiki v0.1.0');
+    console.log(`llmwiki v${getPackageVersion()}`);
     return 0;
   }
 
