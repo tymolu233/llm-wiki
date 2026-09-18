@@ -1,6 +1,6 @@
 {
   "name": "@tymolu/llmwiki",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Agent-First personal knowledge base engine compiled by LLMs, browsed in Obsidian, VS Code, or any markdown editor.",
   "type": "module",
   "bin": {
