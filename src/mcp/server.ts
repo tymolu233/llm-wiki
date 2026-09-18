@@ -90,6 +90,10 @@ export function createMcpServer(vaultDir: string): McpServer {
                 sources: targetNode.note.sources,
                 frontmatter: targetNode.note.frontmatter,
                 links: targetNode.note.links,
+                backlinks: targetNode.inboundLinks.map((l) => ({
+                  fromFile: l.fromFile,
+                  linkText: l.link.raw,
+                })),
                 rawMarkdown: rawContent,
               },
               null,
