@@ -51,19 +51,24 @@ describe('Vault Initialization Module', () => {
     expect(claudeContent).toContain('LLM Wiki Librarian');
   });
 
-  it('is idempotent and does not overwrite existing files', async () => {
+  it('is idempotent and non-destructively preserves existing files', async () => {
     // First run
     await initVault({ vaultDir: tempDir });
 
-    // Customise AGENTS.md and index.md
-    const customAgents = '# Custom Agent Rules';
+    // Customise AGENTS.md with user-specific rules
+    const customAgents = '# Custom Agent Rules\n- My custom rule 1';
     await fs.writeFile(path.join(tempDir, 'AGENTS.md'), customAgents, 'utf-8');
 
-    // Second run
+    // Second run: should safely append without destroying custom rules
     const result = await initVault({ vaultDir: tempDir });
 
-    expect(result.skippedFiles).toContain('AGENTS.md');
+    expect(result.updatedFiles).toContain('AGENTS.md');
     const readBack = await fs.readFile(path.join(tempDir, 'AGENTS.md'), 'utf-8');
-    expect(readBack).toBe(customAgents);
+    expect(readBack).toContain(customAgents);
+    expect(readBack).toContain('## LLM Wiki Librarian');
+
+    // Third run: already has the section, so it skips without duplicating
+    const thirdRun = await initVault({ vaultDir: tempDir });
+    expect(thirdRun.skippedFiles).toContain('AGENTS.md');
   });
 });

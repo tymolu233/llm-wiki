@@ -44,7 +44,45 @@ In your project or notes directory:
 npx llmwiki init
 ```
 
-This instantly scaffolds:
+In interactive terminals (TTY), `llmwiki` presents a rich selection prompt (powered by `@clack/prompts`, similar to `npx skills add`) allowing you to select which agents to configure:
+
+```
+┌   llmwiki init — Agent-First Knowledge Base
+│
+◇  Select AI agents to configure with LLM Wiki rules:
+│  ● Cursor (.cursor/rules/llmwiki.mdc & .cursor/mcp.json)
+│  ● Claude Code (CLAUDE.md & .mcp.json)
+│  ● Codex / Antigravity / Generic (AGENTS.md)
+│  ○ Cline / Roo Code (.cline/mcp_settings.json)
+│  ○ GitHub Copilot / VS Code (.vscode/mcp.json)
+│  ○ Windsurf (.windsurfrules)
+│  ○ Gemini CLI (GEMINI.md)
+│  ○ Zed (.zed/settings.json)
+│
+◇  Configure project-level MCP server for selected agents?
+│  Yes
+└  Vault initialized successfully!
+```
+
+#### 🛡️ Safe & Non-Destructive Guarantee
+`llmwiki` will **never** overwrite or erase your existing `AGENTS.md`, `CLAUDE.md`, or `.cursorrules`. If files already exist (e.g. holding your Matt Pocock skills or custom coding guidelines), `llmwiki` safely appends an isolated `## LLM Wiki Librarian` section at the bottom. If the section is already present, it cleanly skips it without duplicates.
+
+#### Non-Interactive / CI Flags:
+```bash
+# Configure all supported agents and MCP configurations automatically
+npx llmwiki init --all
+
+# Specify exact agents non-interactively
+npx llmwiki init --agent cursor,claude
+
+# Skip MCP server configuration
+npx llmwiki init --agent claude --no-mcp
+
+# Accept auto-detected defaults silently
+npx llmwiki init -y
+```
+
+This scaffolds:
 ```
 my-vault/
 ├── raw/                 # Immutable source documents (curated by you)
@@ -54,19 +92,20 @@ my-vault/
 │   └── syntheses/       # Deep comparative summaries and Q&A answers
 ├── index.md             # Categorized catalog index with backlink stats
 ├── log.md               # Append-only chronological audit log
-└── AGENTS.md / CLAUDE.md# Autonomous librarian rules for your AI Agent
+├── AGENTS.md / CLAUDE.md# Safely adapted librarian rules for your AI Agent
+└── .cursor/ / .mcp.json # Auto-configured project MCP settings
 ```
 
-### 2. Connect Your AI Agent (MCP)
+### 2. Manual Connect (Optional)
 
-`llmwiki` comes with a built-in **Model Context Protocol (MCP)** server.
+If you didn't auto-configure MCP during `init`, you can add it at any time:
 
 #### Claude Code:
 ```bash
 claude mcp add llmwiki -- npx -y llmwiki mcp
 ```
 
-#### Cursor (`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
+#### Cursor (`.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {

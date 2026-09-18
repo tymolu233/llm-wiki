@@ -1,16 +1,29 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { atomicWriteFile } from './storage.js';
+import {
+  AgentTarget,
+  ALL_AGENTS,
+  detectAgentEnvironments,
+  configureAgentRules,
+  configureAgentMcp,
+} from './agents.js';
 
 export interface InitOptions {
   vaultDir: string;
   force?: boolean;
+  agents?: AgentTarget[];
+  allAgents?: boolean;
+  configureMcp?: boolean;
 }
 
 export interface InitResult {
   vaultDir: string;
   createdFiles: string[];
+  updatedFiles: string[];
   skippedFiles: string[];
+  configuredAgents: AgentTarget[];
+  configuredMcp: string[];
 }
 
 export const INDEX_MARKER_START = '<!-- LLMWIKI_INDEX_START -->';
@@ -113,14 +126,34 @@ You are the maintainer and curator of this personal knowledge base.
    - Run \`npx llmwiki lint\` to detect and resolve orphan notes or broken links.
 `;
 
+  // 4. Resolve target agents
+  const targets: AgentTarget[] = options.allAgents
+    ? ALL_AGENTS
+    : options.agents && options.agents.length > 0
+    ? options.agents
+    : await detectAgentEnvironments(vaultDir);
+
   await maybeCreateFile('index.md', defaultIndex);
   await maybeCreateFile('log.md', defaultLog);
-  await maybeCreateFile('AGENTS.md', defaultAgentRules);
-  await maybeCreateFile('CLAUDE.md', defaultAgentRules);
+
+  // Configure agent rules
+  const rulesResult = await configureAgentRules(vaultDir, targets);
+  createdFiles.push(...rulesResult.created);
+  const updatedFiles = [...rulesResult.updated];
+  skippedFiles.push(...rulesResult.skipped);
+
+  // Configure agent MCP configs
+  let configuredMcp: string[] = [];
+  if (options.configureMcp !== false) {
+    configuredMcp = await configureAgentMcp(vaultDir, targets);
+  }
 
   return {
     vaultDir,
     createdFiles,
+    updatedFiles,
     skippedFiles,
+    configuredAgents: targets,
+    configuredMcp,
   };
 }
