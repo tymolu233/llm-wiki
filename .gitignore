@@ -13,3 +13,9 @@ references/
 *.log
 .DS_Store
 Thumbs.db
+
+# Local agent skills & docs
+.agents/
+docs/
+llm-wiki.md
+.zed/
