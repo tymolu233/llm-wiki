@@ -4,7 +4,7 @@
   "description": "Agent-First personal knowledge base engine compiled by LLMs, browsed in Obsidian, VS Code, or any markdown editor.",
   "type": "module",
   "bin": {
-    "llmwiki": "./bin/llmwiki.js"
+    "llmwiki": "bin/llmwiki.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
