@@ -59,6 +59,14 @@ describe('Multi-Agent Adapter Module', () => {
       expect(content).toContain('LLM Wiki Librarian');
     });
 
+    it('generates .clinerules for Cline / Roo Code', async () => {
+      const { created } = await configureAgentRules(tempDir, ['cline']);
+      expect(created).toContain('.clinerules');
+
+      const content = await fs.readFile(path.join(tempDir, '.clinerules'), 'utf-8');
+      expect(content).toContain('LLM Wiki Librarian');
+    });
+
     it('NEVER overwrites existing AGENTS.md, but safely appends the wiki librarian section', async () => {
       const existingAgentsMd = `# AGENTS.md
 

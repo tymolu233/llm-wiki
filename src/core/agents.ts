@@ -14,8 +14,8 @@ export const ALL_AGENT_INFOS: AgentOptionInfo[] = [
   { id: 'cursor', name: 'Cursor', description: 'Cursor rules (.cursor/rules/*.mdc) and MCP server (.cursor/mcp.json)' },
   { id: 'claude', name: 'Claude Code', description: 'Claude Code rules (CLAUDE.md) and project MCP (.mcp.json)' },
   { id: 'agents', name: 'Codex / Antigravity / Generic', description: 'Universal Agent rules (AGENTS.md)' },
-  { id: 'cline', name: 'Cline / Roo Code', description: 'Cline MCP settings (.cline/mcp_settings.json)' },
-  { id: 'copilot', name: 'GitHub Copilot / VS Code', description: 'VS Code MCP settings (.vscode/mcp.json)' },
+  { id: 'cline', name: 'Cline / Roo Code', description: 'Cline rules (.clinerules) and MCP settings (.cline/mcp_settings.json)' },
+  { id: 'copilot', name: 'GitHub Copilot / VS Code', description: 'Copilot rules (.github/copilot-instructions.md) and MCP (.vscode/mcp.json)' },
   { id: 'windsurf', name: 'Windsurf', description: 'Cascade rules (.windsurfrules)' },
   { id: 'gemini', name: 'Gemini CLI', description: 'Gemini CLI rules (GEMINI.md)' },
   { id: 'zed', name: 'Zed', description: 'Zed context servers (.zed/settings.json)' },
@@ -208,6 +208,11 @@ ${librarianSectionBody}
 
       case 'copilot': {
         await safeAppend('.github/copilot-instructions.md', 'GitHub Copilot Instructions');
+        break;
+      }
+
+      case 'cline': {
+        await safeAppend('.clinerules', 'Cline Rules');
         break;
       }
 
