@@ -1,11 +1,26 @@
 import * as path from 'node:path';
 import * as p from '@clack/prompts';
+import pc from 'picocolors';
 import { initVault } from './core/init.js';
 import { lintVault, formatLintReport } from './core/linter.js';
 import { reconcileIndex } from './core/indexer.js';
 import { searchVault } from './core/search.js';
 import { startMcpServer } from './mcp/server.js';
 import { ALL_AGENT_INFOS, ALL_AGENTS, AgentTarget, detectAgentEnvironments } from './core/agents.js';
+
+export function renderBanner(): void {
+  const banner = [
+    pc.cyan('██╗     ██╗     ███╗   ███╗██╗    ██╗██╗██╗  ██╗██╗'),
+    pc.cyanBright('██║     ██║     ████╗ ████║██║    ██║██║██║ ██╔╝██║'),
+    pc.blueBright('██║     ██║     ██╔████╔██║██║ █╗ ██║██║█████╔╝ ██║'),
+    pc.blue('██║     ██║     ██║╚██╔╝██║██║███╗██║██║██╔═██╗ ██║'),
+    pc.magentaBright('███████╗███████╗██║ ╚═╝ ██║╚███╔███╔╝██║██║  ██╗██║'),
+    pc.magenta('╚══════╝╚══════╝╚═╝     ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═╝╚═╝'),
+  ];
+  console.log('\n' + banner.join('\n'));
+  console.log('  ' + pc.bold(pc.cyan('🧠 LLM WIKI')) + pc.dim(' — Agent-First Knowledge Base Engine'));
+  console.log(pc.dim('     "Stop Retrieving, Start Compiling."\n'));
+}
 
 export async function runCli(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -66,7 +81,9 @@ export async function runCli(argv: string[]): Promise<number> {
       const canPrompt = Boolean(process.stdout.isTTY) && !isYes && !isAll && !agentList;
 
       if (canPrompt) {
-        p.intro('📚 llmwiki init — Agent-First Knowledge Base');
+        renderBanner();
+
+        p.intro(pc.bgCyan(pc.black(' llmwiki init ')) + ' ' + pc.bold('Agent-First Knowledge Base Setup'));
 
         const detected = await detectAgentEnvironments(targetDir);
 
@@ -100,45 +117,72 @@ export async function runCli(argv: string[]): Promise<number> {
           setupMcp = Boolean(confirmMcp);
         }
 
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         const s = p.spinner();
-        s.start('Scaffolding vault and configuring agent rules...');
+
+        s.start(pc.cyan('🧠 Connecting to neural vault matrix...'));
+        await sleep(180);
+
+        s.message(pc.cyan('📁 Scaffolding knowledge taxonomy (raw/, wiki/entities, concepts, syntheses)...'));
+        await sleep(180);
+
+        s.message(pc.cyan('📖 Synthesizing indexed catalog and append-only audit log...'));
+        await sleep(180);
+
+        const selectedList = selectedAgents as AgentTarget[];
+        if (selectedList.length > 0) {
+          s.message(pc.cyan(`🤖 Embedding Librarian protocols into: ${selectedList.join(', ')}...`));
+          await sleep(220);
+        }
+
+        if (setupMcp) {
+          s.message(pc.cyan('🔌 Binding Model Context Protocol (MCP) server endpoints...'));
+          await sleep(200);
+        }
 
         try {
           const result = await initVault({
             vaultDir: targetDir,
             force,
-            agents: selectedAgents as AgentTarget[],
+            agents: selectedList,
             configureMcp: setupMcp,
           });
 
-          s.stop('LLM Wiki vault initialized!');
+          s.stop(pc.green('✨ Knowledge base vault successfully initialized!'));
 
           const lines: string[] = [];
+          lines.push(pc.bold('📂 Vault Location: ') + pc.cyan(targetDir));
+          lines.push('');
+          lines.push(pc.bold('📁 Scaffolding & Notes:'));
           for (const file of result.createdFiles) {
-            lines.push(`  + Created: ${file}`);
+            lines.push(`   ${pc.green('✓')} ${pc.white(file)}`);
           }
           for (const file of result.updatedFiles) {
-            lines.push(`  * Appended rule: ${file} (safely preserved existing content)`);
+            lines.push(`   ${pc.yellow('★')} ${pc.yellow(file)} ${pc.dim('(safely appended rules, preserved user content)')}`);
           }
           for (const file of result.skippedFiles) {
-            lines.push(`  - Skipped: ${file} (already contains rules)`);
+            lines.push(`   ${pc.dim('–')} ${pc.dim(file + ' (already configured)')}`);
           }
           if (result.configuredMcp.length > 0) {
             lines.push('');
+            lines.push(pc.bold('🔌 Agent MCP Integrations:'));
             for (const mcpFile of result.configuredMcp) {
-              lines.push(`  🔌 MCP Configured: ${mcpFile}`);
+              lines.push(`   ${pc.magenta('⚡')} ${pc.magenta(mcpFile)} ${pc.dim('(configured stdio MCP server)')}`);
             }
           }
 
           p.note(lines.join('\n'), 'Vault Configuration Summary');
-          p.outro('✨ Knowledge base ready! Open this directory in Obsidian or your AI assistant.');
+          p.outro(pc.green('✨ LLM Wiki is ready! Open in Obsidian or have your AI agent compile notes.'));
           return 0;
         } catch (err: any) {
-          s.stop('Initialization failed.');
+          s.stop(pc.red('Initialization failed.'));
           p.log.error(err.message);
           return 1;
         }
       } else {
+        if (process.stdout.isTTY) {
+          renderBanner();
+        }
         console.log(`\n📦 Initializing LLM Wiki vault in: ${targetDir}\n`);
 
         try {
@@ -154,7 +198,7 @@ export async function runCli(argv: string[]): Promise<number> {
             console.log(`  ✓ Created: ${file}`);
           }
           for (const file of result.updatedFiles) {
-            console.log(`  ✓ Updated: ${file} (appended rules non-destructively)`);
+            console.log(`  ★ Updated: ${file} (appended rules non-destructively)`);
           }
           for (const file of result.skippedFiles) {
             console.log(`  - Exists:  ${file} (skipped)`);
