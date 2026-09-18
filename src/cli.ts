@@ -18,7 +18,7 @@ export function renderBanner(): void {
     pc.magenta('╚══════╝╚══════╝╚═╝     ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═╝╚═╝'),
   ];
   console.log('\n' + banner.join('\n'));
-  console.log('  ' + pc.bold(pc.cyan('🧠 LLM WIKI')) + pc.dim(' — Agent-First Knowledge Base Engine'));
+  console.log('  ' + pc.bold(pc.cyan('LLMWIKI')) + pc.dim(' - Agent-First Knowledge Base Engine'));
   console.log(pc.dim('     "Stop Retrieving, Start Compiling."\n'));
 }
 
@@ -71,8 +71,8 @@ export async function runCli(argv: string[]): Promise<number> {
         const validSet = new Set<AgentTarget>(ALL_AGENTS);
         const invalid = agentList.filter((a) => !validSet.has(a));
         if (invalid.length > 0) {
-          console.error(`❌ Unknown agent target(s): ${invalid.join(', ')}`);
-          console.error(`   Available agents: ${ALL_AGENTS.join(', ')}`);
+          console.error(pc.red(`Error: Unknown agent target(s): ${invalid.join(', ')}`));
+          console.error(`Available agents: ${ALL_AGENTS.join(', ')}`);
           return 1;
         }
       }
@@ -120,24 +120,24 @@ export async function runCli(argv: string[]): Promise<number> {
         const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         const s = p.spinner();
 
-        s.start(pc.cyan('🧠 Connecting to neural vault matrix...'));
-        await sleep(180);
+        s.start(pc.cyan('Connecting to vault matrix...'));
+        await sleep(150);
 
-        s.message(pc.cyan('📁 Scaffolding knowledge taxonomy (raw/, wiki/entities, concepts, syntheses)...'));
-        await sleep(180);
+        s.message(pc.cyan('Scaffolding taxonomy (raw/, wiki/concepts, entities, syntheses)...'));
+        await sleep(150);
 
-        s.message(pc.cyan('📖 Synthesizing indexed catalog and append-only audit log...'));
-        await sleep(180);
+        s.message(pc.cyan('Synthesizing indexed catalog and append-only audit log...'));
+        await sleep(150);
 
         const selectedList = selectedAgents as AgentTarget[];
         if (selectedList.length > 0) {
-          s.message(pc.cyan(`🤖 Embedding Librarian protocols into: ${selectedList.join(', ')}...`));
-          await sleep(220);
+          s.message(pc.cyan(`Configuring Librarian protocols for: ${selectedList.join(', ')}...`));
+          await sleep(180);
         }
 
         if (setupMcp) {
-          s.message(pc.cyan('🔌 Binding Model Context Protocol (MCP) server endpoints...'));
-          await sleep(200);
+          s.message(pc.cyan('Binding Model Context Protocol (MCP) server endpoints...'));
+          await sleep(150);
         }
 
         try {
@@ -148,31 +148,31 @@ export async function runCli(argv: string[]): Promise<number> {
             configureMcp: setupMcp,
           });
 
-          s.stop(pc.green('✨ Knowledge base vault successfully initialized!'));
+          s.stop(pc.green('Vault initialized and agent protocols configured!'));
 
           const lines: string[] = [];
-          lines.push(pc.bold('📂 Vault Location: ') + pc.cyan(targetDir));
+          lines.push(pc.bold('Vault Location: ') + pc.cyan(targetDir));
           lines.push('');
-          lines.push(pc.bold('📁 Scaffolding & Notes:'));
+          lines.push(pc.bold('Scaffolding & Notes:'));
           for (const file of result.createdFiles) {
-            lines.push(`   ${pc.green('✓')} ${pc.white(file)}`);
+            lines.push(`   ${pc.green('+')} Created:  ${pc.white(file)}`);
           }
           for (const file of result.updatedFiles) {
-            lines.push(`   ${pc.yellow('★')} ${pc.yellow(file)} ${pc.dim('(safely appended rules, preserved user content)')}`);
+            lines.push(`   ${pc.yellow('*')} Appended: ${pc.yellow(file)} ${pc.dim('(safely preserved user content)')}`);
           }
           for (const file of result.skippedFiles) {
-            lines.push(`   ${pc.dim('–')} ${pc.dim(file + ' (already configured)')}`);
+            lines.push(`   ${pc.dim('-')} Skipped:  ${pc.dim(file)} ${pc.dim('(already configured)')}`);
           }
           if (result.configuredMcp.length > 0) {
             lines.push('');
-            lines.push(pc.bold('🔌 Agent MCP Integrations:'));
+            lines.push(pc.bold('Agent MCP Integrations:'));
             for (const mcpFile of result.configuredMcp) {
-              lines.push(`   ${pc.magenta('⚡')} ${pc.magenta(mcpFile)} ${pc.dim('(configured stdio MCP server)')}`);
+              lines.push(`   ${pc.magenta('>')} MCP:      ${pc.magenta(mcpFile)} ${pc.dim('(stdio server configured)')}`);
             }
           }
 
           p.note(lines.join('\n'), 'Vault Configuration Summary');
-          p.outro(pc.green('✨ LLM Wiki is ready! Open in Obsidian or have your AI agent compile notes.'));
+          p.outro(pc.green('LLM Wiki is ready! Open in Obsidian or have your AI agent compile notes.'));
           return 0;
         } catch (err: any) {
           s.stop(pc.red('Initialization failed.'));
@@ -183,7 +183,7 @@ export async function runCli(argv: string[]): Promise<number> {
         if (process.stdout.isTTY) {
           renderBanner();
         }
-        console.log(`\n📦 Initializing LLM Wiki vault in: ${targetDir}\n`);
+        console.log(`\nInitializing LLM Wiki vault in: ${targetDir}\n`);
 
         try {
           const result = await initVault({
@@ -195,23 +195,23 @@ export async function runCli(argv: string[]): Promise<number> {
           });
 
           for (const file of result.createdFiles) {
-            console.log(`  ✓ Created: ${file}`);
+            console.log(`  ${pc.green('+')} Created:  ${file}`);
           }
           for (const file of result.updatedFiles) {
-            console.log(`  ★ Updated: ${file} (appended rules non-destructively)`);
+            console.log(`  ${pc.yellow('*')} Appended: ${file} ${pc.dim('(rules non-destructively added)')}`);
           }
           for (const file of result.skippedFiles) {
-            console.log(`  - Exists:  ${file} (skipped)`);
+            console.log(`  ${pc.dim('-')} Exists:   ${file} ${pc.dim('(skipped)')}`);
           }
           if (result.configuredMcp.length > 0) {
             for (const mcpFile of result.configuredMcp) {
-              console.log(`  🔌 MCP:     ${mcpFile}`);
+              console.log(`  ${pc.cyan('>')} MCP:      ${mcpFile}`);
             }
           }
-          console.log(`\n✨ Knowledge base ready! Open this directory in Obsidian or your favorite editor.\n`);
+          console.log(`\nKnowledge base ready! Open this directory in Obsidian or your favorite editor.\n`);
           return 0;
         } catch (err: any) {
-          console.error(`❌ Initialization failed: ${err.message}`);
+          console.error(pc.red(`Error: Initialization failed - ${err.message}`));
           return 1;
         }
       }
@@ -225,7 +225,7 @@ export async function runCli(argv: string[]): Promise<number> {
         const errors = report.issues.filter((i) => i.severity === 'error');
         return errors.length > 0 ? 1 : 0;
       } catch (err: any) {
-        console.error(`❌ Lint failed: ${err.message}`);
+        console.error(pc.red(`Error: Lint failed - ${err.message}`));
         return 1;
       }
     }
@@ -234,15 +234,15 @@ export async function runCli(argv: string[]): Promise<number> {
       const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
       try {
         const stats = await reconcileIndex(targetDir);
-        console.log(`\n📚 Index reconciled for: ${targetDir}`);
-        console.log(`   • Total notes:     ${stats.totalNotes}`);
-        console.log(`   • Concepts:        ${stats.conceptCount}`);
-        console.log(`   • Entities:        ${stats.entityCount}`);
-        console.log(`   • Syntheses:       ${stats.synthesisCount}`);
-        console.log(`   • Status:          ${stats.updated ? 'Updated index.md' : 'Up to date (no changes)'}\n`);
+        console.log(`\nIndex reconciled for: ${targetDir}`);
+        console.log(`   - Total notes:     ${stats.totalNotes}`);
+        console.log(`   - Concepts:        ${stats.conceptCount}`);
+        console.log(`   - Entities:        ${stats.entityCount}`);
+        console.log(`   - Syntheses:       ${stats.synthesisCount}`);
+        console.log(`   - Status:          ${stats.updated ? 'Updated index.md' : 'Up to date (no changes)'}\n`);
         return 0;
       } catch (err: any) {
-        console.error(`❌ Index reconciliation failed: ${err.message}`);
+        console.error(pc.red(`Error: Index reconciliation failed - ${err.message}`));
         return 1;
       }
     }
@@ -250,7 +250,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case 'search': {
       const query = args[1];
       if (!query || query.startsWith('--')) {
-        console.error('❌ Please provide a search query: npx llmwiki search <query>');
+        console.error(pc.red('Error: Please provide a search query: npx llmwiki search <query>'));
         return 1;
       }
 
@@ -264,20 +264,20 @@ export async function runCli(argv: string[]): Promise<number> {
           return 0;
         }
 
-        console.log(`\n🔎 Search results for "${query}" (${results.length} found):\n`);
+        console.log(`\nSearch results for "${query}" (${results.length} found):\n`);
         if (results.length === 0) {
           console.log('  No matching notes found.\n');
           return 0;
         }
 
         for (const res of results) {
-          console.log(`  📄 [[${res.title}]] (${res.relativePath})`);
+          console.log(`  [[${res.title}]] (${res.relativePath})`);
           console.log(`     Score: ${res.score} | Type: ${res.type}`);
           console.log(`     "${res.snippet}"\n`);
         }
         return 0;
       } catch (err: any) {
-        console.error(`❌ Search failed: ${err.message}`);
+        console.error(pc.red(`Error: Search failed - ${err.message}`));
         return 1;
       }
     }
@@ -288,7 +288,7 @@ export async function runCli(argv: string[]): Promise<number> {
         await startMcpServer(targetDir);
         return 0;
       } catch (err: any) {
-        console.error(`❌ Failed to start MCP server: ${err.message}`);
+        console.error(pc.red(`Error: Failed to start MCP server - ${err.message}`));
         return 1;
       }
     }

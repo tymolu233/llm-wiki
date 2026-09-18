@@ -97,12 +97,12 @@ export async function lintVault(vaultDir: string): Promise<LintReport> {
  */
 export function formatLintReport(report: LintReport): string {
   const lines: string[] = [];
-  lines.push(`\n🔍 LLM Wiki Health Check for: ${report.vaultDir}\n`);
+  lines.push(`\nLLM Wiki Health Check for: ${report.vaultDir}\n`);
 
   if (report.issues.length === 0) {
-    lines.push(`✨ Vault is completely healthy!`);
-    lines.push(`   • Total notes: ${report.stats.noteCount}`);
-    lines.push(`   • Verified links: ${report.stats.linkCount}\n`);
+    lines.push(`Vault is completely healthy!`);
+    lines.push(`   - Total notes:     ${report.stats.noteCount}`);
+    lines.push(`   - Verified links:  ${report.stats.linkCount}\n`);
     return lines.join('\n');
   }
 
@@ -110,19 +110,19 @@ export function formatLintReport(report: LintReport): string {
   const warnings = report.issues.filter((i) => i.severity === 'warning');
 
   if (errors.length > 0) {
-    lines.push(`❌ Errors (${errors.length}):`);
+    lines.push(`Errors (${errors.length}):`);
     for (const err of errors) {
       const lineInfo = err.line ? `:${err.line}` : '';
-      lines.push(`  • [${err.file}${lineInfo}] ${err.message}`);
+      lines.push(`  - [${err.file}${lineInfo}] ${err.message}`);
     }
     lines.push('');
   }
 
   if (warnings.length > 0) {
-    lines.push(`⚠️  Warnings (${warnings.length}):`);
+    lines.push(`Warnings (${warnings.length}):`);
     for (const warn of warnings) {
       const lineInfo = warn.line ? `:${warn.line}` : '';
-      lines.push(`  • [${warn.file}${lineInfo}] ${warn.message}`);
+      lines.push(`  - [${warn.file}${lineInfo}] ${warn.message}`);
     }
     lines.push('');
   }
