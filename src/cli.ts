@@ -3,6 +3,7 @@ import { initVault } from './core/init.js';
 import { lintVault, formatLintReport } from './core/linter.js';
 import { reconcileIndex } from './core/indexer.js';
 import { searchVault } from './core/search.js';
+import { startMcpServer } from './mcp/server.js';
 
 export async function runCli(argv: string[]): Promise<number> {
   const args = argv.slice(2);
@@ -105,8 +106,14 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'mcp': {
-      console.log(`Command "${command}" will be implemented in subsequent tickets.`);
-      return 0;
+      const targetDir = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : process.cwd();
+      try {
+        await startMcpServer(targetDir);
+        return 0;
+      } catch (err: any) {
+        console.error(`❌ Failed to start MCP server: ${err.message}`);
+        return 1;
+      }
     }
 
     default: {
