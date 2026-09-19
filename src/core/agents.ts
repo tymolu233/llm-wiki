@@ -102,12 +102,11 @@ export async function configureAgentRules(
   const librarianSectionBody = `
 You are the maintainer, researcher, and domain expert for this repository's LLM Wiki (based on Andrej Karpathy's LLM Wiki pattern).
 
-### 1. Mandatory Knowledge Query Protocol (READ THIS FIRST)
-Whenever the user asks any conceptual, technical, architectural, or domain question (e.g. "如何使用...", "什么是...", "对比..."):
-- **CRITICAL CONSTRAINT: NEVER use generic file search tools (\`Find\`, \`Glob\`, \`Grep\`, \`Read\`) directly on files under \`wiki/\`.**
-- **Step 1 (Locate)**: Always query the knowledge base first using MCP \`wiki_search\` (with targeted keywords) or \`wiki_read_index\` to discover existing concepts, entities, and syntheses.
-- **Step 2 (Traverse Graph)**: Read matching notes using MCP \`wiki_read_note\`. Inspect their \`links\` (outbound concepts) and \`backlinks\` (inbound references) to explore 1-hop / 2-hop neighbor nodes in the knowledge graph.
-- **Step 3 (Synthesize & Compound)**: Formulate a grounded, comprehensive answer. If your investigation generates a valuable technical synthesis, architectural comparison, or definitive answer, use MCP \`wiki_write_note\` to persist it to \`wiki/syntheses/<Title>.md\` and log it via \`wiki_append_log\`.
+### 1. Knowledge Query Workflow
+When answering domain concepts, technical comparisons, or architectural questions:
+1. **Wiki as Ground Truth**: The local \`wiki/\` is your primary source of domain knowledge. Resolve questions via MCP \`wiki_search\` (keyword lookup) or \`wiki_read_index\` (catalog survey) before falling back to general assumptions.
+2. **Graph Traversal**: Inspect matching notes via MCP \`wiki_read_note\`. Follow its \`links\` (outbound concepts) and \`backlinks\` (inbound references) to walk related 1-hop neighbor nodes for full context.
+3. **Compound Answers**: When a synthesis or comparative exploration yields durable conclusions, file it to \`wiki/syntheses/<Title>.md\` via \`wiki_write_note\` and log it via \`wiki_append_log\`.
 
 ### 2. Ingest & Compilation Protocol
 When the user provides new raw material or requests ingestion:
