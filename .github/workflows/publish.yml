@@ -1,24 +1,30 @@
-name: Publish to npmjs
+name: Release & Publish to npmjs
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'npm dist-tag (e.g. beta, next, latest)'
+        description: 'npm dist-tag (e.g. beta, latest)'
         required: false
         default: ''
 
 jobs:
   publish:
+    name: Build, Test, Release & Publish
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,28 +35,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Run test suite
         run: npm test
 
       - name: Build
         run: npm run build
 
-      - name: Publish to npmjs
+      - name: Determine npm tag
+        id: meta
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG="${{ github.event.inputs.tag }}"
           if [ -z "$TAG" ]; then
             if [[ "$VERSION" =~ -(alpha|beta|rc|next) ]]; then
               TAG="beta"
+            else
+              TAG="latest"
             fi
           fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          if [ -n "$TAG" ]; then
-            echo "Publishing $VERSION with --tag $TAG"
-            npm publish --access public --tag "$TAG"
-          else
-            echo "Publishing $VERSION"
-            npm publish --access public
-          fi
+      - name: Publish to npmjs
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          echo "Publishing @tymolu/llmwiki@$VERSION to npmjs with dist-tag: $TAG"
+          npm publish --access public --tag "$TAG" --provenance
+
+          # Ensure latest points to current release so npx defaults to it
+          npm dist-tag add "@tymolu/llmwiki@$VERSION" latest || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'release'
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          PRERELEASE_FLAG=""
+          if [[ "$TAG_NAME" =~ -(alpha|beta|rc) ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG_NAME" --generate-notes $PRERELEASE_FLAG --title "$TAG_NAME" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
