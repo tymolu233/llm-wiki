@@ -14,7 +14,7 @@ export interface ResolvedLink {
 export interface NoteNode {
   note: ParsedNote;
   outboundLinks: ResolvedLink[];
-  inboundLinks: { fromFile: string; link: Wikilink }[];
+  inboundLinks: { fromFile: string; fromTitle: string; link: Wikilink }[];
 }
 
 export interface VaultGraph {
@@ -125,6 +125,7 @@ export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
         if (targetNode) {
           targetNode.inboundLinks.push({
             fromFile: note.relativePath,
+            fromTitle: note.title,
             link,
           });
         }
@@ -148,6 +149,7 @@ export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
           if (targetNode) {
             targetNode.inboundLinks.push({
               fromFile: note.relativePath,
+              fromTitle: note.title,
               link,
             });
           }

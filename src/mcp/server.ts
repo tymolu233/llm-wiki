@@ -9,6 +9,7 @@ import { reconcileIndex } from '../core/indexer.js';
 import { searchVault } from '../core/search.js';
 import { lintVault, formatLintReport } from '../core/linter.js';
 import { buildVaultGraph } from '../core/graph.js';
+import { getVaultStatus } from '../core/status.js';
 
 export function createMcpServer(vaultDir: string): McpServer {
   const server = new McpServer({
@@ -92,6 +93,7 @@ export function createMcpServer(vaultDir: string): McpServer {
                 links: targetNode.note.links,
                 backlinks: targetNode.inboundLinks.map((l) => ({
                   fromFile: l.fromFile,
+                  fromTitle: l.fromTitle,
                   linkText: l.link.raw,
                 })),
                 rawMarkdown: rawContent,
@@ -228,6 +230,19 @@ export function createMcpServer(vaultDir: string): McpServer {
       const report = await lintVault(vaultDir);
       return {
         content: [{ type: 'text', text: formatLintReport(report) }],
+      };
+    }
+  );
+
+  // 7. wiki_status
+  server.tool(
+    'wiki_status',
+    'Get a comprehensive overview of the wiki vault: note counts, graph topology, central hubs, and pending raw sources waiting for compilation.',
+    {},
+    async () => {
+      const status = await getVaultStatus(vaultDir);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
       };
     }
   );

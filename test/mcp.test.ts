@@ -30,7 +30,7 @@ describe('MCP Server Module', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it('lists all 6 atomic wiki tools', async () => {
+  it('lists all 7 atomic wiki tools', async () => {
     const tools = await client.listTools();
     const toolNames = tools.tools.map((t) => t.name);
 
@@ -40,6 +40,7 @@ describe('MCP Server Module', () => {
     expect(toolNames).toContain('wiki_search');
     expect(toolNames).toContain('wiki_append_log');
     expect(toolNames).toContain('wiki_lint');
+    expect(toolNames).toContain('wiki_status');
   });
 
   it('performs write_note, read_note, and read_index through MCP', async () => {
@@ -126,5 +127,50 @@ describe('MCP Server Module', () => {
     });
     const lintText = (lintRes.content[0] as any).text;
     expect(lintText).toContain('Health Check');
+
+    // 5. Status
+    const statusRes = await client.callTool({
+      name: 'wiki_status',
+      arguments: {},
+    });
+    const statusData = JSON.parse((statusRes.content[0] as any).text);
+    expect(statusData.notes.total).toBe(1);
+    expect(statusData.notes.concepts).toBe(1);
+  });
+
+  it('provides bidirectional graph relationships (links and backlinks with fromTitle) via wiki_read_note', async () => {
+    // 1. Create target note A
+    await client.callTool({
+      name: 'wiki_write_note',
+      arguments: {
+        category: 'concepts',
+        title: 'Target Hub',
+        content: '# Target Hub\nCore hub.',
+      },
+    });
+
+    // 2. Create note B that links to A
+    await client.callTool({
+      name: 'wiki_write_note',
+      arguments: {
+        category: 'concepts',
+        title: 'Source Concept',
+        content: '# Source Concept\nDepends on [[Target Hub]].',
+      },
+    });
+
+    // 3. Read target note A to verify backlinks
+    const readA = await client.callTool({
+      name: 'wiki_read_note',
+      arguments: {
+        pathOrTitle: 'Target Hub',
+      },
+    });
+
+    const parsedA = JSON.parse((readA.content[0] as any).text);
+    expect(parsedA.backlinks).toBeDefined();
+    expect(parsedA.backlinks.length).toBe(1);
+    expect(parsedA.backlinks[0].fromTitle).toBe('Source Concept');
+    expect(parsedA.backlinks[0].linkText).toContain('Target Hub');
   });
 });

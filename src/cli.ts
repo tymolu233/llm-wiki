@@ -6,6 +6,7 @@ import { initVault } from './core/init.js';
 import { lintVault, formatLintReport } from './core/linter.js';
 import { reconcileIndex } from './core/indexer.js';
 import { searchVault } from './core/search.js';
+import { getVaultStatus, formatVaultStatus } from './core/status.js';
 import { startMcpServer } from './mcp/server.js';
 import { ALL_AGENT_INFOS, ALL_AGENTS, AgentTarget, detectAgentEnvironments } from './core/agents.js';
 
@@ -232,6 +233,25 @@ export async function runCli(argv: string[]): Promise<number> {
       }
     }
 
+    case 'status': {
+      const isJson = args.includes('--json');
+      const targetDirArg = args.find((a) => !a.startsWith('--') && a !== 'status');
+      const targetDir = targetDirArg ? path.resolve(targetDirArg) : process.cwd();
+
+      try {
+        const status = await getVaultStatus(targetDir);
+        if (isJson) {
+          console.log(JSON.stringify(status, null, 2));
+          return 0;
+        }
+        console.log(formatVaultStatus(status));
+        return 0;
+      } catch (err: any) {
+        console.error(pc.red(`Error: Failed to get vault status - ${err.message}`));
+        return 1;
+      }
+    }
+
     case 'lint': {
       const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
       try {
@@ -325,6 +345,7 @@ Usage:
 
 Commands:
   init [path]     Scaffold a new LLM Wiki vault and adapt agent rules (defaults to cwd)
+  status [path]   Display vault overview, graph hubs, and pending raw compilation sources
   index [path]    Reconcile and rebuild index.md from all notes
   lint [path]     Audit knowledge base for broken links and orphan notes
   search <query>  Search vault notes for keywords or phrases

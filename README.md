@@ -25,8 +25,8 @@ Most document Q&A tools use stateless **RAG** (Retrieval-Augmented Generation): 
 
 - **🚀 Zero Configuration (Agent-First)**: No API keys to configure, no LLM provider lock-in, zero billing overhead. `llmwiki` relies directly on the intelligence of whatever AI coding agent you already use.
 - **⚡ Single Package, Multi-Surface**:
-  - **CLI Surface**: `npx @tymolu/llmwiki init / index / lint / search`
-  - **MCP Surface**: Standard stdio Model Context Protocol server exposing 6 atomic tools directly to agents.
+  - **CLI Surface**: `npx @tymolu/llmwiki init / status / index / lint / search`
+  - **MCP Surface**: Standard stdio Model Context Protocol server exposing 7 atomic tools directly to agents.
   - **Skill Surface**: Pre-bundled librarian guidelines (`AGENTS.md` and `CLAUDE.md`).
 - **🌐 Open Markdown Vault**: 100% standard CommonMark files. Open it in Obsidian for the graph view, edit it in VS Code/Cursor, or browse it on GitHub. Zero proprietary plugins required.
 - **🛡️ Deterministic Housekeeping**: Automatically reconciles `index.md` and detects broken links and orphan notes in milliseconds without burning LLM tokens.
@@ -140,6 +140,10 @@ claude mcp add llmwiki -- npx -y @tymolu/llmwiki mcp
 # Initialize a new vault
 npx @tymolu/llmwiki init [path]
 
+# Display vault overview, graph hubs, and pending raw compilation sources
+npx @tymolu/llmwiki status [path]
+npx @tymolu/llmwiki status [path] --json
+
 # Rebuild catalog index.md (non-destructively preserves your custom notes)
 npx @tymolu/llmwiki index [path]
 
@@ -158,16 +162,17 @@ npx @tymolu/llmwiki mcp [path]
 
 ## 🔌 MCP Tools Reference
 
-When connected via MCP, your AI agent has access to 6 atomic tools:
+When connected via MCP, your AI agent has access to 7 atomic tools:
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `wiki_read_index` | none | Returns the content of `index.md` summarizing all indexed notes. |
-| `wiki_read_note` | `pathOrTitle` | Reads note frontmatter, body markdown, and outgoing links. |
+| `wiki_status` | none | Returns complete vault diagnostic: note counts, graph hubs, and uncompiled pending raw sources. |
+| `wiki_read_index` | none | Returns the content of `index.md` summarizing all indexed notes with backlink counts. |
+| `wiki_read_note` | `pathOrTitle` | Reads note frontmatter, body, outbound `links`, and incoming `backlinks` (with source titles). |
 | `wiki_write_note` | `category`, `title`, `content`, `frontmatter` | Atomically creates/updates notes under `entities/`, `concepts/`, or `syntheses/` and updates the index. |
 | `wiki_search` | `query`, `limit` | Searches notes with relevance scoring and snippet previews. |
 | `wiki_append_log` | `operation`, `title`, `details` | Appends a standardized audit entry to `log.md`. |
-| `wiki_lint` | none | Runs full-vault diagnostic check for broken links and orphan notes. |
+| `wiki_lint` | none | Runs full-vault diagnostic check for broken links, case-mismatches, and orphan notes. |
 
 ---
 

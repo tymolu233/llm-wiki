@@ -60,6 +60,15 @@ describe('CLI runner', () => {
     expect(exitCode).toBe(0);
   });
 
+  it('runs "llmwiki status <path>" and outputs status dashboard', async () => {
+    await runCli(['node', 'llmwiki', 'init', tempDir]);
+    const exitCode = await runCli(['node', 'llmwiki', 'status', tempDir]);
+    expect(exitCode).toBe(0);
+
+    const jsonExit = await runCli(['node', 'llmwiki', 'status', tempDir, '--json']);
+    expect(jsonExit).toBe(0);
+  });
+
   it('runs "llmwiki index <path>" and rebuilds index.md', async () => {
     await runCli(['node', 'llmwiki', 'init', tempDir]);
     const exitCode = await runCli(['node', 'llmwiki', 'index', tempDir]);
