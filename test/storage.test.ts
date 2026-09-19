@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { assertPathContained, atomicWriteFile, safeReadFile } from '../src/core/storage.js';
+import { assertPathContained, atomicWriteFile, safeReadFile, findVaultRoot } from '../src/core/storage.js';
 
 describe('Storage Module', () => {
   let tempDir: string;
@@ -66,6 +66,32 @@ describe('Storage Module', () => {
 
     it('blocks reading files outside the vault', async () => {
       await expect(safeReadFile(tempDir, '../outside.txt')).rejects.toThrow(/Path traversal detected/);
+    });
+  });
+
+  describe('findVaultRoot', () => {
+    it('returns the same directory if wiki/ exists directly in it', async () => {
+      await fs.mkdir(path.join(tempDir, 'wiki'));
+      const root = await findVaultRoot(tempDir);
+      expect(root).toBe(path.resolve(tempDir));
+    });
+
+    it('resolves the vault root when called from a deep subdirectory', async () => {
+      await fs.mkdir(path.join(tempDir, 'wiki'));
+      const nestedSubdir = path.join(tempDir, 'subfolder', 'deep', 'nested');
+      await fs.mkdir(nestedSubdir, { recursive: true });
+
+      const root = await findVaultRoot(nestedSubdir);
+      expect(root).toBe(path.resolve(tempDir));
+    });
+
+    it('resolves vault root based on root index.md if wiki/ is not present', async () => {
+      await fs.writeFile(path.join(tempDir, 'index.md'), '# Wiki Index');
+      const nestedSubdir = path.join(tempDir, 'src', 'components');
+      await fs.mkdir(nestedSubdir, { recursive: true });
+
+      const root = await findVaultRoot(nestedSubdir);
+      expect(root).toBe(path.resolve(tempDir));
     });
   });
 });

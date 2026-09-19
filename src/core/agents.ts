@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { atomicWriteFile } from './storage.js';
 
-export type AgentTarget = 'claude' | 'cursor' | 'windsurf' | 'agents' | 'gemini' | 'cline' | 'copilot' | 'zed';
+export type AgentTarget = 'claude' | 'cursor' | 'windsurf' | 'agents' | 'gemini' | 'cline' | 'copilot' | 'zed' | 'continue';
 
 export interface AgentOptionInfo {
   id: AgentTarget;
@@ -13,12 +13,13 @@ export interface AgentOptionInfo {
 export const ALL_AGENT_INFOS: AgentOptionInfo[] = [
   { id: 'cursor', name: 'Cursor', description: 'Cursor rules (.cursor/rules/*.mdc) and MCP server (.cursor/mcp.json)' },
   { id: 'claude', name: 'Claude Code', description: 'Claude Code rules (CLAUDE.md) and project MCP (.mcp.json)' },
-  { id: 'agents', name: 'Codex / Antigravity / Generic', description: 'Universal Agent rules (AGENTS.md) and project MCP (.mcp.json)' },
-  { id: 'cline', name: 'Cline / Roo Code', description: 'Cline rules (.clinerules) and MCP settings (.cline/mcp_settings.json)' },
+  { id: 'agents', name: 'Codex / Antigravity / Generic', description: 'Universal rules (AGENTS.md) and project MCP (.mcp.json, .agents/plugins/)' },
+  { id: 'cline', name: 'Cline / Roo Code', description: 'Cline/Roo rules (.clinerules) and MCP (.cline/mcp.json, .roo/mcp.json)' },
   { id: 'copilot', name: 'GitHub Copilot / VS Code', description: 'Copilot rules (.github/copilot-instructions.md) and MCP (.vscode/mcp.json)' },
-  { id: 'windsurf', name: 'Windsurf', description: 'Cascade rules (.windsurfrules)' },
-  { id: 'gemini', name: 'Gemini CLI', description: 'Gemini CLI rules (GEMINI.md) and project MCP (.mcp.json)' },
+  { id: 'windsurf', name: 'Windsurf', description: 'Cascade rules (.windsurfrules) and workspace MCP (.windsurf/mcp.json)' },
+  { id: 'gemini', name: 'Gemini CLI / Code Assist', description: 'Gemini rules (GEMINI.md) and project MCP (.gemini/settings.json)' },
   { id: 'zed', name: 'Zed', description: 'Zed context servers (.zed/settings.json)' },
+  { id: 'continue', name: 'Continue.dev', description: 'Continue rules (.continue/rules/) and MCP (.continue/mcpServers/)' },
 ];
 
 export const ALL_AGENTS: AgentTarget[] = ALL_AGENT_INFOS.map((a) => a.id);
@@ -47,11 +48,16 @@ export async function detectAgentEnvironments(vaultDir: string): Promise<AgentTa
     detected.push('claude');
   }
 
-  if (await checkExists('AGENTS.md')) {
+  if ((await checkExists('AGENTS.md')) || (await checkExists('.agents'))) {
     detected.push('agents');
   }
 
-  if ((await checkExists('.cline')) || (await checkExists('.roomodes'))) {
+  if (
+    (await checkExists('.cline')) ||
+    (await checkExists('.clinerules')) ||
+    (await checkExists('.roomodes')) ||
+    (await checkExists('.roo'))
+  ) {
     detected.push('cline');
   }
 
@@ -59,16 +65,20 @@ export async function detectAgentEnvironments(vaultDir: string): Promise<AgentTa
     detected.push('copilot');
   }
 
-  if ((await checkExists('.windsurfrules')) || (await checkExists('.codeium'))) {
+  if ((await checkExists('.windsurfrules')) || (await checkExists('.codeium')) || (await checkExists('.windsurf'))) {
     detected.push('windsurf');
   }
 
-  if (await checkExists('GEMINI.md')) {
+  if ((await checkExists('GEMINI.md')) || (await checkExists('.gemini'))) {
     detected.push('gemini');
   }
 
   if (await checkExists('.zed')) {
     detected.push('zed');
+  }
+
+  if (await checkExists('.continue')) {
+    detected.push('continue');
   }
 
   if (detected.length === 0) {
@@ -226,6 +236,26 @@ ${librarianSectionBody}
         break;
       }
 
+      case 'continue': {
+        const fullPath = path.join(vaultDir, '.continue/rules/llmwiki.md');
+        let exists = false;
+        try {
+          await fs.access(fullPath);
+          exists = true;
+        } catch {
+          exists = false;
+        }
+
+        if (exists) {
+          skipped.push('.continue/rules/llmwiki.md');
+        } else {
+          const continueRule = `# Continue.dev Rules - LLM Wiki Librarian\n${librarianSectionBody}\n`;
+          await atomicWriteFile(fullPath, continueRule);
+          created.push('.continue/rules/llmwiki.md');
+        }
+        break;
+      }
+
       default:
         break;
     }
@@ -235,16 +265,80 @@ ${librarianSectionBody}
 }
 
 /**
+ * Strips comments (// and /* ... *\/) and trailing commas from JSON/JSONC text,
+ * preserving string literals and escape characters.
+ */
+export function stripJsonComments(jsonString: string): string {
+  let insideString = false;
+  let stringChar = '';
+  let isEscaped = false;
+  let result = '';
+
+  for (let i = 0; i < jsonString.length; i++) {
+    const char = jsonString[i];
+    const nextChar = jsonString[i + 1];
+
+    if (insideString) {
+      result += char;
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (char === '\\') {
+        isEscaped = true;
+      } else if (char === stringChar) {
+        insideString = false;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      insideString = true;
+      stringChar = char;
+      result += char;
+      continue;
+    }
+
+    // Single-line comment: // ...
+    if (char === '/' && nextChar === '/') {
+      const endOfLine = jsonString.indexOf('\n', i);
+      if (endOfLine === -1) {
+        break;
+      }
+      i = endOfLine - 1;
+      continue;
+    }
+
+    // Multi-line comment: /* ... */
+    if (char === '/' && nextChar === '*') {
+      const endOfBlock = jsonString.indexOf('*/', i + 2);
+      if (endOfBlock === -1) {
+        break;
+      }
+      i = endOfBlock + 1;
+      continue;
+    }
+
+    result += char;
+  }
+
+  // Remove trailing commas before } or ]
+  return result.replace(/,\s*([}\]])/g, '$1');
+}
+
+/**
  * Merges a server definition into an existing or new MCP configuration JSON string.
  */
 export function mergeMcpConfig(existingContent: string, serverName: string, serverDef: any, containerKey: string = 'mcpServers'): string {
   let config: any = {};
-  try {
-    if (existingContent.trim()) {
+  if (existingContent.trim()) {
+    try {
       config = JSON.parse(existingContent);
+    } catch {
+      try {
+        config = JSON.parse(stripJsonComments(existingContent));
+      } catch {
+        config = {};
+      }
     }
-  } catch {
-    config = {};
   }
 
   // Preserve existing container key if present
@@ -274,7 +368,11 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
     args: ['-y', '@tymolu/llmwiki', 'mcp'],
   };
 
-  const updateConfigFile = async (relPath: string, containerKey: string = 'mcpServers', customDef: any = defaultLlmwikiMcpDef) => {
+  const updateConfigFile = async (
+    relPath: string,
+    containerKey: string = 'mcpServers',
+    customDef: any = defaultLlmwikiMcpDef
+  ) => {
     const fullPath = path.join(vaultDir, relPath);
     let existingContent = '';
     try {
@@ -285,23 +383,47 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
 
     const merged = mergeMcpConfig(existingContent, 'llmwiki', customDef, containerKey);
     await atomicWriteFile(fullPath, merged);
-    updatedFiles.push(relPath);
+    updatedFiles.push(relPath.replace(/\\/g, '/'));
   };
 
+  // 1. Cursor: .cursor/mcp.json
   if (targets.includes('cursor')) {
     await updateConfigFile('.cursor/mcp.json', 'mcpServers');
   }
 
-  if (targets.includes('claude') || targets.includes('agents') || targets.includes('gemini')) {
+  // 2. Claude Code: .mcp.json
+  if (targets.includes('claude')) {
     await updateConfigFile('.mcp.json', 'mcpServers');
   }
 
-  if (targets.includes('cline')) {
-    await updateConfigFile('.cline/mcp_settings.json', 'mcpServers');
+  // 3. Codex / Antigravity / Generic: .mcp.json AND workspace plugin in .agents/plugins/llmwiki/
+  if (targets.includes('agents')) {
+    await updateConfigFile('.mcp.json', 'mcpServers');
+
+    // Antigravity (agy / IDE) plugin auto-discovery
+    const pluginManifestRelPath = '.agents/plugins/llmwiki/plugin.json';
+    const pluginManifestFullPath = path.join(vaultDir, pluginManifestRelPath);
+    try {
+      await fs.access(pluginManifestFullPath);
+    } catch {
+      const pluginManifest = {
+        name: 'llmwiki',
+        description: 'LLM Wiki Agent Knowledge Base MCP Server',
+      };
+      await atomicWriteFile(pluginManifestFullPath, JSON.stringify(pluginManifest, null, 2) + '\n');
+    }
+    await updateConfigFile('.agents/plugins/llmwiki/mcp_config.json', 'mcpServers');
   }
 
+  // 4. Cline & Roo Code: .cline/mcp.json, .cline/mcp_settings.json, .roo/mcp.json
+  if (targets.includes('cline')) {
+    await updateConfigFile('.cline/mcp.json', 'mcpServers');
+    await updateConfigFile('.cline/mcp_settings.json', 'mcpServers');
+    await updateConfigFile('.roo/mcp.json', 'mcpServers');
+  }
+
+  // 5. GitHub Copilot / VS Code: .vscode/mcp.json
   if (targets.includes('copilot')) {
-    // Official VS Code MCP configuration uses 'servers' with type 'stdio'
     const vsCodeMcpDef = {
       type: 'stdio',
       command: 'npx',
@@ -310,9 +432,40 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
     await updateConfigFile('.vscode/mcp.json', 'servers', vsCodeMcpDef);
   }
 
+  // 6. Gemini CLI / Code Assist: .gemini/settings.json & .mcp.json
+  if (targets.includes('gemini')) {
+    await updateConfigFile('.gemini/settings.json', 'mcpServers');
+    await updateConfigFile('.mcp.json', 'mcpServers');
+  }
+
+  // 7. Windsurf: .codeium/windsurf/mcp_config.json & .windsurf/mcp.json
+  if (targets.includes('windsurf')) {
+    await updateConfigFile('.codeium/windsurf/mcp_config.json', 'mcpServers');
+    await updateConfigFile('.windsurf/mcp.json', 'mcpServers');
+  }
+
+  // 8. Zed: .zed/settings.json (context_servers)
   if (targets.includes('zed')) {
     await updateConfigFile('.zed/settings.json', 'context_servers');
   }
 
-  return updatedFiles;
+  // 9. Continue.dev: .continue/mcpServers/llmwiki.yaml
+  if (targets.includes('continue')) {
+    const continueYamlPath = path.join(vaultDir, '.continue', 'mcpServers', 'llmwiki.yaml');
+    const continueYaml = `name: llmwiki
+version: 0.1.0
+schema: v1
+mcpServers:
+  - name: llmwiki
+    command: npx
+    args:
+      - "-y"
+      - "@tymolu/llmwiki"
+      - "mcp"
+`;
+    await atomicWriteFile(continueYamlPath, continueYaml);
+    updatedFiles.push('.continue/mcpServers/llmwiki.yaml');
+  }
+
+  return Array.from(new Set(updatedFiles));
 }

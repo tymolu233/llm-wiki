@@ -92,3 +92,36 @@ export async function resolveLogPath(vaultDir: string): Promise<string> {
     }
   }
 }
+
+/**
+ * Resolves the root of the LLM Wiki vault by walking up the directory tree
+ * from `startDir` until finding markers like `wiki/` directory or `index.md`.
+ * If none found, returns the resolved `startDir`.
+ */
+export async function findVaultRoot(startDir: string): Promise<string> {
+  let current = path.resolve(startDir);
+  while (true) {
+    const wikiDir = path.join(current, 'wiki');
+    try {
+      const stat = await fs.stat(wikiDir);
+      if (stat.isDirectory()) {
+        return current;
+      }
+    } catch {}
+
+    const indexFile = path.join(current, 'index.md');
+    try {
+      const stat = await fs.stat(indexFile);
+      if (stat.isFile()) {
+        return current;
+      }
+    } catch {}
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return path.resolve(startDir);
+}

@@ -9,6 +9,7 @@ import { searchVault } from './core/search.js';
 import { getVaultStatus, formatVaultStatus } from './core/status.js';
 import { startMcpServer } from './mcp/server.js';
 import { ALL_AGENT_INFOS, ALL_AGENTS, AgentTarget, detectAgentEnvironments } from './core/agents.js';
+import { findVaultRoot } from './core/storage.js';
 
 function getPackageVersion(): string {
   try {
@@ -236,7 +237,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case 'status': {
       const isJson = args.includes('--json');
       const targetDirArg = args.find((a) => !a.startsWith('--') && a !== 'status');
-      const targetDir = targetDirArg ? path.resolve(targetDirArg) : process.cwd();
+      const targetDir = await findVaultRoot(targetDirArg ? path.resolve(targetDirArg) : process.cwd());
 
       try {
         const status = await getVaultStatus(targetDir);
@@ -253,7 +254,8 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'lint': {
-      const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
+      const rawTarget = args[1] ? path.resolve(args[1]) : process.cwd();
+      const targetDir = await findVaultRoot(rawTarget);
       try {
         const report = await lintVault(targetDir);
         console.log(formatLintReport(report));
@@ -266,7 +268,8 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'index': {
-      const targetDir = args[1] ? path.resolve(args[1]) : process.cwd();
+      const rawTarget = args[1] ? path.resolve(args[1]) : process.cwd();
+      const targetDir = await findVaultRoot(rawTarget);
       try {
         const stats = await reconcileIndex(targetDir);
         console.log(`\nIndex reconciled for: ${targetDir}`);
@@ -290,7 +293,8 @@ export async function runCli(argv: string[]): Promise<number> {
       }
 
       const isJson = args.includes('--json');
-      const targetDir = args[2] && !args[2].startsWith('--') ? path.resolve(args[2]) : process.cwd();
+      const rawTarget = args[2] && !args[2].startsWith('--') ? path.resolve(args[2]) : process.cwd();
+      const targetDir = await findVaultRoot(rawTarget);
 
       try {
         const results = await searchVault(targetDir, query);
@@ -318,7 +322,8 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'mcp': {
-      const targetDir = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : process.cwd();
+      const rawTarget = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : process.cwd();
+      const targetDir = await findVaultRoot(rawTarget);
       try {
         await startMcpServer(targetDir);
         return 0;
@@ -354,7 +359,7 @@ Commands:
 Options for 'init':
   -y, --yes             Skip prompts and initialize with detected defaults
   --all                 Configure rules and MCP for all supported agents
-  -a, --agent <agents>  Comma-separated list (cursor,claude,agents,cline,copilot,windsurf,gemini,zed)
+  -a, --agent <agents>  Comma-separated list (cursor,claude,agents,cline,copilot,windsurf,gemini,zed,continue)
   --no-mcp              Skip MCP server configuration
   --root-index          Place index.md and log.md in vault root instead of wiki/
   -f, --force           Overwrite default index.md and log.md if already present
