@@ -138,6 +138,40 @@ describe('MCP Server Module', () => {
     expect(statusData.notes.concepts).toBe(1);
   });
 
+  it('merges canonical frontmatter into content that already has frontmatter', async () => {
+    await client.callTool({
+      name: 'wiki_write_note',
+      arguments: {
+        category: 'concepts',
+        title: 'Merged Note',
+        content: '---\ncustom_field: keep-me\n---\n# Merged Note\nBody.',
+      },
+    });
+
+    const raw = await fs.readFile(path.join(tempDir, 'wiki', 'concepts', 'Merged Note.md'), 'utf-8');
+    expect(raw).toContain('custom_field: keep-me');
+    expect(raw).toContain('title: Merged Note');
+    expect(raw).toContain('type: concept');
+    expect(raw).toContain('last_updated:');
+  });
+
+  it('skipReconcile defers index rebuild during batch writes', async () => {
+    const writeRes = await client.callTool({
+      name: 'wiki_write_note',
+      arguments: {
+        category: 'concepts',
+        title: 'Batch Note',
+        content: '# Batch Note\nWritten without reconcile.',
+        skipReconcile: true,
+      },
+    });
+    expect((writeRes.content[0] as any).text).toContain('skipped');
+
+    // Index should NOT contain the note yet
+    const indexRes = await client.callTool({ name: 'wiki_read_index', arguments: {} });
+    expect((indexRes.content[0] as any).text).not.toContain('[[Batch Note]]');
+  });
+
   it('provides bidirectional graph relationships (links and backlinks with fromTitle) via wiki_read_note', async () => {
     // 1. Create target note A
     await client.callTool({

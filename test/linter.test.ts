@@ -110,4 +110,36 @@ Body text.`,
       expected: 'Transformer',
     });
   });
+
+  it('reports case-insensitive name collisions between distinct notes', async () => {
+    // Two notes whose titles collide case-insensitively — ambiguous link resolution
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'concepts', 'Alpha.md'),
+      '# Alpha\nFirst.',
+      'utf-8'
+    );
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'entities', 'Beta.md'),
+      '---\ntitle: "ALPHA"\ntype: entity\n---\n# ALPHA\nSecond.',
+      'utf-8'
+    );
+
+    const report = await lintVault(tempDir);
+    const collisions = report.issues.filter((i) => i.type === 'case-collision');
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].severity).toBe('error');
+    expect(collisions[0].message).toContain('Alpha.md');
+    expect(collisions[0].message).toContain('Beta.md');
+    expect(report.stats.caseCollisionCount).toBe(1);
+  });
+
+  it('scans notes from vault root when wiki/ has no notes', async () => {
+    // Root-level vault (no notes under wiki/)
+    await fs.writeFile(path.join(tempDir, 'Root Note.md'), '# Root Note\nStandalone.', 'utf-8');
+
+    const report = await lintVault(tempDir);
+    expect(report.stats.noteCount).toBe(1);
+    const orphan = report.issues.find((i) => i.type === 'orphan-note');
+    expect(orphan?.file).toBe('Root Note.md');
+  });
 });

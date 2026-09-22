@@ -132,28 +132,10 @@ export async function runCli(argv: string[]): Promise<number> {
           setupMcp = Boolean(confirmMcp);
         }
 
-        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         const s = p.spinner();
-
-        s.start(pc.cyan('Connecting to vault matrix...'));
-        await sleep(150);
-
-        s.message(pc.cyan('Scaffolding taxonomy (raw/, wiki/concepts, entities, syntheses)...'));
-        await sleep(150);
-
-        s.message(pc.cyan('Synthesizing indexed catalog and append-only audit log...'));
-        await sleep(150);
+        s.start(pc.cyan('Initializing vault...'));
 
         const selectedList = selectedAgents as AgentTarget[];
-        if (selectedList.length > 0) {
-          s.message(pc.cyan(`Configuring Librarian protocols for: ${selectedList.join(', ')}...`));
-          await sleep(180);
-        }
-
-        if (setupMcp) {
-          s.message(pc.cyan('Binding Model Context Protocol (MCP) server endpoints...'));
-          await sleep(150);
-        }
 
         try {
           const result = await initVault({

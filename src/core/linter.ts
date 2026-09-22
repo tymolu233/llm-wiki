@@ -1,7 +1,7 @@
 import { buildVaultGraph, VaultGraph } from './graph.js';
 
 export interface LintIssue {
-  type: 'broken-link' | 'orphan-note' | 'case-mismatch';
+  type: 'broken-link' | 'orphan-note' | 'case-mismatch' | 'case-collision';
   severity: 'error' | 'warning';
   file: string;
   line?: number;
@@ -20,6 +20,7 @@ export interface LintReport {
     orphanCount: number;
     brokenCount: number;
     caseMismatchCount: number;
+    caseCollisionCount: number;
   };
 }
 
@@ -79,6 +80,16 @@ export async function lintVault(vaultDir: string): Promise<LintReport> {
     }
   }
 
+  // 3. Audit case-insensitive name collisions (ambiguous link resolution, breaks on case-sensitive filesystems)
+  for (const collision of graph.caseCollisions) {
+    issues.push({
+      type: 'case-collision',
+      severity: 'error',
+      file: collision.files[0],
+      message: `Case collision: "${collision.name}" is claimed by multiple notes: ${collision.files.join(', ')}. Link resolution is ambiguous.`,
+    });
+  }
+
   return {
     vaultDir,
     issues,
@@ -88,6 +99,7 @@ export async function lintVault(vaultDir: string): Promise<LintReport> {
       orphanCount,
       brokenCount,
       caseMismatchCount,
+      caseCollisionCount: graph.caseCollisions.length,
     },
   };
 }

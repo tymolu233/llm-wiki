@@ -44,16 +44,19 @@ export async function searchVault(
 
   const results: SearchResult[] = [];
 
-  for (const relFile of files) {
-    const fullPath = path.join(vaultDir, relFile);
-    let content = '';
-    try {
-      content = await fs.readFile(fullPath, 'utf-8');
-    } catch {
-      continue;
-    }
+  const notes = await Promise.all(
+    files.map(async (relFile) => {
+      try {
+        const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
+        return parseMarkdownNote(relFile, content);
+      } catch {
+        return null;
+      }
+    })
+  );
 
-    const note = parseMarkdownNote(relFile, content);
+  for (const note of notes) {
+    if (!note) continue;
     const score = calculateRelevance(note, cleanQuery, queryTerms);
 
     if (score > 0) {

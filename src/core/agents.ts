@@ -165,8 +165,8 @@ last_updated: ${today}
       return;
     }
 
-    // File exists: check if section is already present
-    if (existingContent.includes(librarianSectionHeading) || existingContent.includes('LLM Wiki Librarian')) {
+    // File exists: check if the section heading is already present (exact heading match)
+    if (existingContent.includes(librarianSectionHeading)) {
       skipped.push(relPath);
       return;
     }
@@ -177,32 +177,28 @@ last_updated: ${today}
     updated.push(relPath);
   };
 
+  // Write a dedicated rule file only if it doesn't exist yet
+  const createOnce = async (relPath: string, content: string) => {
+    try {
+      await fs.access(path.join(vaultDir, relPath));
+      skipped.push(relPath);
+    } catch {
+      await atomicWriteFile(path.join(vaultDir, relPath), content);
+      created.push(relPath);
+    }
+  };
+
   for (const target of targets) {
     switch (target) {
       case 'cursor': {
-        const fullPath = path.join(vaultDir, '.cursor/rules/llmwiki.mdc');
-        let exists = false;
-        try {
-          await fs.access(fullPath);
-          exists = true;
-        } catch {
-          exists = false;
-        }
-
-        if (exists) {
-          skipped.push('.cursor/rules/llmwiki.mdc');
-        } else {
-          const cursorMdc = `---
+        await createOnce('.cursor/rules/llmwiki.mdc', `---
 description: LLM Wiki librarian guidelines for maintaining the knowledge base
 globs: ["wiki/**/*.md", "raw/**/*", "index.md", "log.md"]
 alwaysApply: true
 ---
 # Cursor Rules - LLM Wiki Librarian
 ${librarianSectionBody}
-`;
-          await atomicWriteFile(fullPath, cursorMdc);
-          created.push('.cursor/rules/llmwiki.mdc');
-        }
+`);
         break;
       }
 
@@ -237,22 +233,7 @@ ${librarianSectionBody}
       }
 
       case 'continue': {
-        const fullPath = path.join(vaultDir, '.continue/rules/llmwiki.md');
-        let exists = false;
-        try {
-          await fs.access(fullPath);
-          exists = true;
-        } catch {
-          exists = false;
-        }
-
-        if (exists) {
-          skipped.push('.continue/rules/llmwiki.md');
-        } else {
-          const continueRule = `# Continue.dev Rules - LLM Wiki Librarian\n${librarianSectionBody}\n`;
-          await atomicWriteFile(fullPath, continueRule);
-          created.push('.continue/rules/llmwiki.md');
-        }
+        await createOnce('.continue/rules/llmwiki.md', `# Continue.dev Rules - LLM Wiki Librarian\n${librarianSectionBody}\n`);
         break;
       }
 

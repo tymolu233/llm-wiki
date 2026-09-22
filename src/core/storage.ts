@@ -52,45 +52,32 @@ export async function safeReadFile(baseDir: string, relativePath: string): Promi
 }
 
 /**
- * Resolves the location of index.md, checking wiki/index.md first,
- * then falling back to root index.md if it exists.
- * Defaults to wiki/index.md for a clean project root.
+ * Resolves the location of a vault file (index.md / log.md), checking
+ * wiki/<name> first, then falling back to the vault root.
+ * Defaults to wiki/<name> for a clean project root.
  */
-export async function resolveIndexPath(vaultDir: string): Promise<string> {
-  const wikiIndex = path.join(vaultDir, 'wiki', 'index.md');
+async function resolveVaultFile(vaultDir: string, name: string): Promise<string> {
+  const wikiPath = path.join(vaultDir, 'wiki', name);
   try {
-    await fs.access(wikiIndex);
-    return wikiIndex;
+    await fs.access(wikiPath);
+    return wikiPath;
   } catch {
-    const rootIndex = path.join(vaultDir, 'index.md');
+    const rootPath = path.join(vaultDir, name);
     try {
-      await fs.access(rootIndex);
-      return rootIndex;
+      await fs.access(rootPath);
+      return rootPath;
     } catch {
-      return wikiIndex;
+      return wikiPath;
     }
   }
 }
 
-/**
- * Resolves the location of log.md, checking wiki/log.md first,
- * then falling back to root log.md if it exists.
- * Defaults to wiki/log.md for a clean project root.
- */
-export async function resolveLogPath(vaultDir: string): Promise<string> {
-  const wikiLog = path.join(vaultDir, 'wiki', 'log.md');
-  try {
-    await fs.access(wikiLog);
-    return wikiLog;
-  } catch {
-    const rootLog = path.join(vaultDir, 'log.md');
-    try {
-      await fs.access(rootLog);
-      return rootLog;
-    } catch {
-      return wikiLog;
-    }
-  }
+export function resolveIndexPath(vaultDir: string): Promise<string> {
+  return resolveVaultFile(vaultDir, 'index.md');
+}
+
+export function resolveLogPath(vaultDir: string): Promise<string> {
+  return resolveVaultFile(vaultDir, 'log.md');
 }
 
 /**

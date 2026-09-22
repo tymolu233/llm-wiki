@@ -124,8 +124,12 @@ export function createMcpServer(vaultDir: string): McpServer {
         })
         .optional()
         .describe('Optional frontmatter properties'),
+      skipReconcile: z
+        .boolean()
+        .optional()
+        .describe('Skip automatic index reconciliation (use when writing many notes; reconcile once at the end)'),
     },
-    async ({ category, title, content, frontmatter }) => {
+    async ({ category, title, content, frontmatter, skipReconcile }) => {
       // Sanitize filename
       const safeFilename = title.trim().replace(/[\\/:*?"<>|]/g, '-');
       const relativePath = path.join('wiki', category, `${safeFilename}.md`);
@@ -145,24 +149,36 @@ export function createMcpServer(vaultDir: string): McpServer {
         fmData.summary = frontmatter.summary;
       }
 
-      // Check if body already has frontmatter
+      // If the body already carries frontmatter, merge in the canonical fields
+      // (title/type/last_updated) instead of writing it through untouched.
       let finalMarkdown = '';
       if (content.trim().startsWith('---')) {
-        finalMarkdown = content;
+        try {
+          const parsed = matter(content);
+          const merged = { ...parsed.data, ...fmData };
+          finalMarkdown = matter.stringify(parsed.content, merged);
+        } catch {
+          finalMarkdown = content;
+        }
       } else {
         finalMarkdown = matter.stringify(content, fmData);
       }
 
       await atomicWriteFile(targetPath, finalMarkdown);
 
-      // Automatically keep index.md fresh
-      await reconcileIndex(vaultDir);
+      // Automatically keep index.md fresh unless batching
+      let indexNote = 'Index reconciled automatically.';
+      if (skipReconcile) {
+        indexNote = 'Index reconciliation skipped (skipReconcile=true). Run reconcile once batch is complete.';
+      } else {
+        await reconcileIndex(vaultDir);
+      }
 
       return {
         content: [
           {
             type: 'text',
-            text: `Successfully wrote note: [[${title.trim()}]] to ${relativePath.replace(/\\/g, '/')}\nIndex reconciled automatically.`,
+            text: `Successfully wrote note: [[${title.trim()}]] to ${relativePath.replace(/\\/g, '/')}\n${indexNote}`,
           },
         ],
       };

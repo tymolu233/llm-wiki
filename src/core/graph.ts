@@ -20,6 +20,8 @@ export interface NoteNode {
 export interface VaultGraph {
   notes: Map<string, NoteNode>; // keyed by normalized relative path
   allResolvedLinks: ResolvedLink[];
+  // Notes whose lookup names collide case-insensitively (e.g. Note.md vs note.md)
+  caseCollisions: { name: string; files: string[] }[];
 }
 
 /**
@@ -40,6 +42,10 @@ export async function scanMarkdownFiles(dir: string, baseDir: string = dir): Pro
         if (entry.name === 'index.md' || entry.name === 'log.md') {
           continue;
         }
+        // Well-known agent instruction files are not wiki notes
+        if (entry.name === 'AGENTS.md' || entry.name === 'CLAUDE.md' || entry.name === 'GEMINI.md') {
+          continue;
+        }
         const relative = path.relative(baseDir, fullPath).replace(/\\/g, '/');
         results.push(relative);
       }
@@ -56,21 +62,40 @@ export async function scanMarkdownFiles(dir: string, baseDir: string = dir): Pro
  */
 export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
   const wikiDir = path.join(vaultDir, 'wiki');
-  const relativeFiles = await scanMarkdownFiles(wikiDir, vaultDir);
+  let relativeFiles: string[] = [];
 
-  const parsedNotes: ParsedNote[] = [];
-
-  for (const relFile of relativeFiles) {
-    const fullPath = path.join(vaultDir, relFile);
-    const content = await fs.readFile(fullPath, 'utf-8');
-    parsedNotes.push(parseMarkdownNote(relFile, content));
+  // Notes live under wiki/ when it exists; otherwise fall back to vault root
+  try {
+    if ((await fs.stat(wikiDir)).isDirectory()) {
+      relativeFiles = await scanMarkdownFiles(wikiDir, vaultDir);
+    }
+  } catch {
+    // no wiki/ directory
   }
+  if (relativeFiles.length === 0) {
+    relativeFiles = await scanMarkdownFiles(vaultDir, vaultDir);
+  }
+
+  const parsedNotes: ParsedNote[] = (
+    await Promise.all(
+      relativeFiles.map(async (relFile) => {
+        try {
+          const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
+          return parseMarkdownNote(relFile, content);
+        } catch {
+          return null; // unreadable file — skip rather than fail the whole graph
+        }
+      })
+    )
+  ).filter((n): n is ParsedNote => n !== null);
 
   // Lookup tables
   // Exact match map
   const exactLookup = new Map<string, ParsedNote>();
   // Lowercase match map for case mismatch detection
   const lowerLookup = new Map<string, { note: ParsedNote; canonical: string }>();
+  // Track case-insensitive name collisions across distinct notes
+  const collisionMap = new Map<string, Set<string>>();
 
   for (const note of parsedNotes) {
     const basename = path.basename(note.relativePath, '.md');
@@ -86,11 +111,19 @@ export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
 
     for (const name of candidates) {
       exactLookup.set(name, note);
-      if (!lowerLookup.has(name.toLowerCase())) {
-        lowerLookup.set(name.toLowerCase(), { note, canonical: name });
+      const lower = name.toLowerCase();
+      if (!lowerLookup.has(lower)) {
+        lowerLookup.set(lower, { note, canonical: name });
       }
+      const owners = collisionMap.get(lower) ?? new Set<string>();
+      owners.add(note.relativePath);
+      collisionMap.set(lower, owners);
     }
   }
+
+  const caseCollisions = Array.from(collisionMap.entries())
+    .filter(([, files]) => files.size > 1)
+    .map(([name, files]) => ({ name, files: Array.from(files).sort() }));
 
   const nodes = new Map<string, NoteNode>();
   for (const note of parsedNotes) {
@@ -170,5 +203,6 @@ export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
   return {
     notes: nodes,
     allResolvedLinks,
+    caseCollisions,
   };
 }
