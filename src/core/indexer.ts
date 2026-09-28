@@ -50,8 +50,8 @@ export async function reconcileIndex(vaultDir: string): Promise<IndexerStats> {
     }
   }
 
-  // Sort notes alphabetically by title
-  const sortFn = (a: NoteNode, b: NoteNode) => a.note.title.localeCompare(b.note.title);
+  // Sort notes alphabetically by title (locale-independent)
+  const sortFn = (a: NoteNode, b: NoteNode) => (a.note.title < b.note.title ? -1 : a.note.title > b.note.title ? 1 : 0);
   concepts.sort(sortFn);
   entities.sort(sortFn);
   syntheses.sort(sortFn);
@@ -73,7 +73,8 @@ export async function reconcileIndex(vaultDir: string): Promise<IndexerStats> {
       const noteTitle = node.note.title;
       const summary = extractSummary(node);
       const backlinks = node.inboundLinks.length;
-      const updated = node.note.frontmatter.last_updated || node.note.frontmatter.date || '-';
+      const updatedRaw = node.note.frontmatter.last_updated || node.note.frontmatter.date || '-';
+      const updated = updatedRaw instanceof Date ? updatedRaw.toISOString().slice(0, 10) : String(updatedRaw);
 
       lines.push(`| [[${noteTitle}]] | ${summary} | ${backlinks} | ${updated} |`);
     }

@@ -1,7 +1,12 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { buildVaultGraph, VaultGraph } from './graph.js';
+import { extractWikilinks } from './parser.js';
+import { resolveIndexPath } from './storage.js';
+import { INDEX_MARKER_START, INDEX_MARKER_END } from './init.js';
 
 export interface LintIssue {
-  type: 'broken-link' | 'orphan-note' | 'case-mismatch' | 'case-collision';
+  type: 'broken-link' | 'orphan-note' | 'case-mismatch' | 'case-collision' | 'untracked-note' | 'missing-index';
   severity: 'error' | 'warning';
   file: string;
   line?: number;
@@ -25,7 +30,8 @@ export interface LintReport {
 }
 
 /**
- * Audits the vault for broken links, orphan notes, and case-sensitivity mismatches.
+ * Audits the vault for broken links, orphan notes, case-sensitivity mismatches,
+ * and untracked notes missing from index.md.
  */
 export async function lintVault(vaultDir: string): Promise<LintReport> {
   const graph: VaultGraph = await buildVaultGraph(vaultDir);
@@ -88,6 +94,60 @@ export async function lintVault(vaultDir: string): Promise<LintReport> {
       file: collision.files[0],
       message: `Case collision: "${collision.name}" is claimed by multiple notes: ${collision.files.join(', ')}. Link resolution is ambiguous.`,
     });
+  }
+
+  // 4. Audit untracked notes (present on disk but omitted from index.md)
+  let indexContent: string | null = null;
+  try {
+    const indexPath = await resolveIndexPath(vaultDir);
+    indexContent = await fs.readFile(indexPath, 'utf-8');
+  } catch {
+    // Missing or unreadable index — one warning instead of per-note spam.
+    // An empty vault has nothing to track, so it stays healthy.
+    if (graph.notes.size > 0) {
+      issues.push({
+        type: 'missing-index',
+        severity: 'warning',
+        file: 'index.md',
+        message: 'index.md is missing — run npx @tymolu/llmwiki index to generate it',
+      });
+    }
+  }
+
+  if (indexContent !== null) {
+    // Generated tables live between the LLMWIKI markers; custom user content
+    // outside them does not count as tracking. Without markers, scan everything.
+    const markerStart = indexContent.indexOf(INDEX_MARKER_START);
+    const markerEnd = indexContent.indexOf(INDEX_MARKER_END);
+    const region =
+      markerStart !== -1 && markerEnd !== -1 && markerEnd > markerStart
+        ? indexContent.slice(markerStart + INDEX_MARKER_START.length, markerEnd)
+        : indexContent;
+
+    const tracked = new Set<string>();
+    for (const link of extractWikilinks(region)) {
+      const target = link.target.trim().toLowerCase();
+      if (target) {
+        tracked.add(target);
+        if (target.endsWith('.md')) {
+          tracked.add(target.slice(0, -3));
+        }
+      }
+    }
+
+    for (const [relPath, node] of graph.notes.entries()) {
+      const withoutExt = relPath.replace(/\.md$/, '');
+      const candidates = [node.note.title, path.basename(relPath, '.md'), withoutExt, withoutExt.replace(/^wiki\//, '')];
+      const isTracked = candidates.some((candidate) => tracked.has(candidate.toLowerCase()));
+      if (!isTracked) {
+        issues.push({
+          type: 'untracked-note',
+          severity: 'warning',
+          file: relPath,
+          message: `Untracked note: "${node.note.title}" (${relPath}) is missing from index.md — run npx @tymolu/llmwiki index to refresh`,
+        });
+      }
+    }
   }
 
   return {

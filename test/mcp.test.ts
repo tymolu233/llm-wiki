@@ -8,6 +8,34 @@ import { createMcpServer } from '../src/mcp/server.js';
 import { initVault } from '../src/core/init.js';
 import { resolveLogPath } from '../src/core/storage.js';
 
+/**
+ * Extracts the text from the first content block of an MCP tool call result.
+ * `client.callTool` resolves to the compatibility result union where the
+ * legacy branch carries `toolResult` instead of `content`, so the shape is
+ * discriminated explicitly instead of relying on `as any` casts.
+ */
+function firstText(result: unknown): string {
+  if (typeof result !== 'object' || result === null || !('content' in result)) {
+    throw new Error('Expected tool result to contain a content field');
+  }
+  const { content } = result;
+  if (!Array.isArray(content) || content.length === 0) {
+    throw new Error('Expected tool result to contain at least one content block');
+  }
+  const block: unknown = content[0];
+  if (
+    typeof block === 'object' &&
+    block !== null &&
+    'type' in block &&
+    block.type === 'text' &&
+    'text' in block &&
+    typeof block.text === 'string'
+  ) {
+    return block.text;
+  }
+  throw new Error('Expected first content block of tool result to be a text block');
+}
+
 describe('MCP Server Module', () => {
   let tempDir: string;
   let client: Client;
@@ -59,7 +87,7 @@ describe('MCP Server Module', () => {
     });
 
     expect(writeRes.isError).toBeFalsy();
-    const writeText = (writeRes.content[0] as any).text;
+    const writeText = firstText(writeRes);
     expect(writeText).toContain('Distributed Consensus');
 
     // 2. Read Note
@@ -70,7 +98,7 @@ describe('MCP Server Module', () => {
       },
     });
 
-    const readText = (readRes.content[0] as any).text;
+    const readText = firstText(readRes);
     expect(readText).toContain('Achieving agreement');
 
     // 3. Read Index (should contain the newly written note)
@@ -79,7 +107,7 @@ describe('MCP Server Module', () => {
       arguments: {},
     });
 
-    const indexText = (indexRes.content[0] as any).text;
+    const indexText = firstText(indexRes);
     expect(indexText).toContain('[[Distributed Consensus]]');
   });
 
@@ -101,7 +129,7 @@ describe('MCP Server Module', () => {
         query: 'Byzantine',
       },
     });
-    const searchText = (searchRes.content[0] as any).text;
+    const searchText = firstText(searchRes);
     expect(searchText).toContain('Byzantine Fault Tolerance');
 
     // 3. Append Log
@@ -125,7 +153,7 @@ describe('MCP Server Module', () => {
       name: 'wiki_lint',
       arguments: {},
     });
-    const lintText = (lintRes.content[0] as any).text;
+    const lintText = firstText(lintRes);
     expect(lintText).toContain('Health Check');
 
     // 5. Status
@@ -133,7 +161,7 @@ describe('MCP Server Module', () => {
       name: 'wiki_status',
       arguments: {},
     });
-    const statusData = JSON.parse((statusRes.content[0] as any).text);
+    const statusData = JSON.parse(firstText(statusRes));
     expect(statusData.notes.total).toBe(1);
     expect(statusData.notes.concepts).toBe(1);
   });
@@ -165,11 +193,11 @@ describe('MCP Server Module', () => {
         skipReconcile: true,
       },
     });
-    expect((writeRes.content[0] as any).text).toContain('skipped');
+    expect(firstText(writeRes)).toContain('skipped');
 
     // Index should NOT contain the note yet
     const indexRes = await client.callTool({ name: 'wiki_read_index', arguments: {} });
-    expect((indexRes.content[0] as any).text).not.toContain('[[Batch Note]]');
+    expect(firstText(indexRes)).not.toContain('[[Batch Note]]');
   });
 
   it('provides bidirectional graph relationships (links and backlinks with fromTitle) via wiki_read_note', async () => {
@@ -201,10 +229,82 @@ describe('MCP Server Module', () => {
       },
     });
 
-    const parsedA = JSON.parse((readA.content[0] as any).text);
+    const parsedA = JSON.parse(firstText(readA));
     expect(parsedA.backlinks).toBeDefined();
     expect(parsedA.backlinks.length).toBe(1);
     expect(parsedA.backlinks[0].fromTitle).toBe('Source Concept');
     expect(parsedA.backlinks[0].linkText).toContain('Target Hub');
+  });
+
+  it('reports the package version dynamically instead of a hardcoded one', async () => {
+    const pkg = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf-8'));
+    const serverVersion = client.getServerVersion();
+    expect(serverVersion?.name).toBe('llmwiki-mcp');
+    expect(serverVersion?.version).toBe(pkg.version);
+  });
+
+  it('prefixes Windows reserved device names (e.g. CON) with an underscore', async () => {
+    const writeRes = await client.callTool({
+      name: 'wiki_write_note',
+      arguments: {
+        category: 'concepts',
+        title: 'CON',
+        content: '# CON\nReserved device name test.',
+      },
+    });
+    expect(writeRes.isError).toBeFalsy();
+
+    const stat = await fs.stat(path.join(tempDir, 'wiki', 'concepts', '_CON.md'));
+    expect(stat.isFile()).toBe(true);
+  });
+
+  it('serializes concurrent wiki_append_log calls without losing entries', async () => {
+    await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        client.callTool({
+          name: 'wiki_append_log',
+          arguments: {
+            operation: 'ingest',
+            title: `Concurrent Entry ${i}`,
+          },
+        })
+      )
+    );
+
+    const logPath = await resolveLogPath(tempDir);
+    const logFile = await fs.readFile(logPath, 'utf-8');
+    const headerCount = (logFile.match(/^## \[/gm) || []).length;
+    // 1 init entry + 10 concurrent appends, none lost
+    expect(headerCount).toBe(11);
+    for (let i = 0; i < 10; i++) {
+      expect(logFile).toContain(`Concurrent Entry ${i}`);
+    }
+  });
+
+  it('wiki_read_index returns freshly reconciled content in root-index vaults with a missing index', async () => {
+    const rootVault = await fs.mkdtemp(path.join(os.tmpdir(), 'llmwiki-mcp-rootidx-'));
+    try {
+      await initVault({ vaultDir: rootVault, rootIndex: true });
+      // Simulate a deleted index: nothing at wiki/index.md or vault root
+      await fs.rm(path.join(rootVault, 'index.md'));
+
+      const rootServer = createMcpServer(rootVault);
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await rootServer.connect(serverTransport);
+      const rootClient = new Client({ name: 'test-client-rootidx', version: '1.0.0' }, { capabilities: {} });
+      await rootClient.connect(clientTransport);
+
+      try {
+        const res = await rootClient.callTool({ name: 'wiki_read_index', arguments: {} });
+        expect(res.isError).toBeFalsy();
+        const text = firstText(res);
+        expect(text).toContain('# Wiki Index');
+      } finally {
+        await rootClient.close();
+        await rootServer.close();
+      }
+    } finally {
+      await fs.rm(rootVault, { recursive: true, force: true });
+    }
   });
 });

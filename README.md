@@ -58,6 +58,7 @@ In interactive terminals (TTY), `llmwiki` presents a rich selection prompt (powe
 │  ○ Windsurf (.windsurfrules)
 │  ○ Gemini CLI (GEMINI.md)
 │  ○ Zed (.zed/settings.json)
+│  ○ Continue (.continue/mcpServers/llmwiki.yaml)
 │
 ◇  Configure project-level MCP server for selected agents?
 │  Yes
@@ -147,7 +148,7 @@ npx @tymolu/llmwiki status [path] --json
 # Rebuild catalog index.md (non-destructively preserves your custom notes)
 npx @tymolu/llmwiki index [path]
 
-# Audit vault health (detects broken [[links]], orphan notes, case-mismatches)
+# Audit vault health (detects broken [[links]], orphan notes, case-mismatches, untracked notes missing from index.md)
 npx @tymolu/llmwiki lint [path]
 
 # Search vault notes with highlighted context snippets

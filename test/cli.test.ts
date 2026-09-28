@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { runCli } from '../src/cli.js';
+import { initVault } from '../src/core/init.js';
 
 describe('CLI runner', () => {
   let tempDir: string;
@@ -152,5 +153,114 @@ describe('CLI runner', () => {
     const content2 = await fs.readFile(path.join(tempDir, 'AGENTS.md'), 'utf-8');
     const matches = content2.match(/## LLM Wiki Librarian/g);
     expect(matches).toHaveLength(1);
+  });
+
+  it('init leaves a malformed .mcp.json untouched, reports the skip, and still exits 0', async () => {
+    // Unterminated braces: invalid JSON
+    const malformed = '{\n  "mcpServers": {\n    "broken": {\n';
+    const mcpPath = path.join(tempDir, '.mcp.json');
+    await fs.writeFile(mcpPath, malformed, 'utf-8');
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let exitCode = -1;
+    try {
+      exitCode = await runCli(['node', 'llmwiki', 'init', tempDir, '--agent', 'claude']);
+    } finally {
+      const out = logSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+      logSpy.mockRestore();
+
+      expect(exitCode).toBe(0);
+      // The malformed config must be byte-identical to before
+      const after = await fs.readFile(mcpPath, 'utf-8');
+      expect(after).toBe(malformed);
+      // And a warning line should mention it was left untouched
+      expect(out).toContain('.mcp.json');
+      expect(out).toContain('left untouched');
+    }
+  });
+
+  it('initVault result records skipped MCP configs for malformed files', async () => {
+    const malformed = '{ "mcpServers": {';
+    await fs.writeFile(path.join(tempDir, '.mcp.json'), malformed, 'utf-8');
+
+    const result = await initVault({ vaultDir: tempDir, agents: ['claude'] });
+    expect(result.skippedMcpConfigs).toHaveLength(1);
+    expect(result.skippedMcpConfigs[0].file).toBe('.mcp.json');
+    expect(result.skippedMcpConfigs[0].reason).toContain('could not be parsed');
+  });
+
+  it('fails with exit code 1 when -a/--agent is given without a value', async () => {
+    const exitCode = await runCli(['node', 'llmwiki', 'init', tempDir, '-a']);
+    expect(exitCode).toBe(1);
+
+    const exitCode2 = await runCli(['node', 'llmwiki', 'init', tempDir, '--agent']);
+    expect(exitCode2).toBe(1);
+  });
+
+  it('rejects unknown flags for "status" like -h (positional path detection ignores flags)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const exitCode = await runCli(['node', 'llmwiki', 'status', '-h']);
+      expect(exitCode).toBe(1);
+      const messages = errSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+      expect(messages).toContain('Unknown flag');
+      expect(messages).not.toContain('Failed to get vault status');
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('rejects unknown flags for "lint" like --json', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const exitCode = await runCli(['node', 'llmwiki', 'lint', '--json']);
+      expect(exitCode).toBe(1);
+      const messages = errSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+      expect(messages).toContain('Unknown flag');
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('rejects unknown flags for "index" like --json', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const exitCode = await runCli(['node', 'llmwiki', 'index', '--json']);
+      expect(exitCode).toBe(1);
+      const messages = errSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+      expect(messages).toContain('Unknown flag');
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('search accepts --json before the vault path and returns JSON for that vault', async () => {
+    await runCli(['node', 'llmwiki', 'init', tempDir]);
+    await fs.writeFile(path.join(tempDir, 'wiki', 'concepts', 'Zebra.md'), '# Zebra\nA striped animal.', 'utf-8');
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let exitCode = -1;
+    try {
+      exitCode = await runCli(['node', 'llmwiki', 'search', 'Zebra', '--json', tempDir]);
+    } finally {
+      const out = logSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+      logSpy.mockRestore();
+
+      expect(exitCode).toBe(0);
+      const results = JSON.parse(out);
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.some((r: any) => r.title === 'Zebra')).toBe(true);
+    }
+  });
+
+  it('mcp with a nonexistent or non-directory path exits 1 without starting the server', async () => {
+    const missing = path.join(tempDir, 'does-not-exist');
+    const exitCode = await runCli(['node', 'llmwiki', 'mcp', missing]);
+    expect(exitCode).toBe(1);
+
+    const filePath = path.join(tempDir, 'a-file.md');
+    await fs.writeFile(filePath, 'not a directory', 'utf-8');
+    const exitCode2 = await runCli(['node', 'llmwiki', 'mcp', filePath]);
+    expect(exitCode2).toBe(1);
   });
 });

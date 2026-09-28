@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { scanMarkdownFiles } from './graph.js';
+import { resolveVaultNotesRoot, scanMarkdownFiles } from './graph.js';
+import { mapWithConcurrency } from './concurrency.js';
 import { parseMarkdownNote, ParsedNote } from './parser.js';
 
 export interface SearchOptions {
@@ -31,10 +32,10 @@ export async function searchVault(
   }
 
   const queryTerms = cleanQuery.split(/\s+/).filter(Boolean);
-  const limit = options.limit ?? 10;
+  const limit = Math.max(0, options.limit ?? 10);
 
-  const wikiDir = path.join(vaultDir, 'wiki');
-  const files = await scanMarkdownFiles(wikiDir, vaultDir);
+  const { notesDir } = await resolveVaultNotesRoot(vaultDir);
+  const files = await scanMarkdownFiles(notesDir, vaultDir);
 
   if (options.includeRaw) {
     const rawDir = path.join(vaultDir, 'raw');
@@ -44,16 +45,14 @@ export async function searchVault(
 
   const results: SearchResult[] = [];
 
-  const notes = await Promise.all(
-    files.map(async (relFile) => {
-      try {
-        const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
-        return parseMarkdownNote(relFile, content);
-      } catch {
-        return null;
-      }
-    })
-  );
+  const notes = await mapWithConcurrency(files, 32, async (relFile) => {
+    try {
+      const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
+      return parseMarkdownNote(relFile, content);
+    } catch {
+      return null;
+    }
+  });
 
   for (const note of notes) {
     if (!note) continue;
@@ -72,12 +71,12 @@ export async function searchVault(
     }
   }
 
-  // Sort descending by score, then alphabetically by title
+  // Sort descending by score, then alphabetically by title (locale-independent)
   results.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score;
     }
-    return a.title.localeCompare(b.title);
+    return a.title < b.title ? -1 : a.title > b.title ? 1 : 0;
   });
 
   return results.slice(0, limit);
@@ -89,7 +88,8 @@ function calculateRelevance(note: ParsedNote, fullQuery: string, terms: string[]
   const lowerContent = note.content.toLowerCase();
   const lowerAliases = note.aliases.map((a) => a.toLowerCase());
   const lowerTags = note.tags.map((t) => t.toLowerCase());
-  const summary = (note.frontmatter.summary || note.frontmatter.description || '').toLowerCase();
+  const summaryField = note.frontmatter.summary || note.frontmatter.description;
+  const summary = typeof summaryField === 'string' ? summaryField.toLowerCase() : '';
 
   // Exact full query match in title
   if (lowerTitle === fullQuery) {

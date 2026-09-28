@@ -34,13 +34,17 @@ export interface ParsedNote {
 /**
  * Extracts all [[wikilinks]] from markdown content, safely ignoring
  * links inside fenced code blocks, inline code snippets, and HTML comments.
+ * Image embeds ![[file.png]] are not treated as links.
  */
-export function extractWikilinks(markdown: string): Wikilink[] {
+export function extractWikilinks(markdown: string, options: { lineOffset?: number } = {}): Wikilink[] {
+  const lineOffset = options.lineOffset ?? 0;
   // Mask fenced code blocks, inline code, and HTML comments while preserving newlines
   const maskText = (text: string): string => {
     return text
       // HTML comments
-      .replace(/<!--[\s\S]*?-->/g, (match) => ' '.repeat(match.length))
+      .replace(/<!--[\s\S]*?-->/g, (match) => {
+        return match.split('\n').map((line) => ' '.repeat(line.length)).join('\n');
+      })
       // Fenced code blocks ```...```
       .replace(/```[\s\S]*?```/g, (match) => {
         return match.split('\n').map((line) => ' '.repeat(line.length)).join('\n');
@@ -53,7 +57,7 @@ export function extractWikilinks(markdown: string): Wikilink[] {
   const links: Wikilink[] = [];
   const lines = masked.split('\n');
 
-  const wikilinkRegex = /\[\[([^\]\n]+)\]\]/g;
+  const wikilinkRegex = /(?<!!)\[\[([^\]\n]+)\]\]/g;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const lineText = lines[lineIndex];
@@ -92,7 +96,7 @@ export function extractWikilinks(markdown: string): Wikilink[] {
           target,
           alias,
           anchor,
-          line: lineIndex + 1,
+          line: lineIndex + 1 + lineOffset,
         });
       }
     }
@@ -110,11 +114,23 @@ export function parseMarkdownNote(relativePath: string, rawContent: string): Par
 
   let frontmatter: NoteFrontmatter = {};
   let content = rawContent;
+  let lineOffset = 0;
 
   try {
     const parsed = matter(rawContent);
     frontmatter = parsed.data || {};
     content = parsed.content;
+    // Links are extracted from frontmatter-stripped content; the offset is the
+    // 1-based index of the closing `---` delimiter, so body line N maps to file line N + offset
+    if (rawContent.startsWith('---')) {
+      const rawLines = rawContent.split('\n');
+      for (let i = 1; i < rawLines.length; i++) {
+        if (rawLines[i].trim() === '---') {
+          lineOffset = i + 1;
+          break;
+        }
+      }
+    }
   } catch {
     // If frontmatter parsing fails, treat entire content as body
     content = rawContent;
@@ -157,7 +173,7 @@ export function parseMarkdownNote(relativePath: string, rawContent: string): Par
     ? frontmatter.sources.map(String).map((s) => s.trim()).filter(Boolean)
     : [];
 
-  const links = extractWikilinks(content);
+  const links = extractWikilinks(content, { lineOffset });
 
   return {
     relativePath: normalizedPath,

@@ -4,17 +4,18 @@ import { z } from 'zod';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import matter from 'gray-matter';
-import { atomicWriteFile, assertPathContained, safeReadFile, resolveIndexPath, resolveLogPath } from '../core/storage.js';
+import { atomicWriteFile, assertPathContainedReal, safeReadFile, resolveIndexPath, resolveLogPath, enqueueVaultWrite } from '../core/storage.js';
 import { reconcileIndex } from '../core/indexer.js';
 import { searchVault } from '../core/search.js';
 import { lintVault, formatLintReport } from '../core/linter.js';
 import { buildVaultGraph } from '../core/graph.js';
 import { getVaultStatus } from '../core/status.js';
+import { getPackageVersion } from '../core/version.js';
 
 export function createMcpServer(vaultDir: string): McpServer {
   const server = new McpServer({
     name: 'llmwiki-mcp',
-    version: '0.1.0',
+    version: getPackageVersion(),
   });
 
   // 1. wiki_read_index
@@ -30,9 +31,12 @@ export function createMcpServer(vaultDir: string): McpServer {
           content: [{ type: 'text', text: content }],
         };
       } catch {
-        // If index doesn't exist, reconcile it first
-        await reconcileIndex(vaultDir);
-        const content = await fs.readFile(indexPath, 'utf-8');
+        // If index doesn't exist, reconcile it first, then re-resolve the path
+        // (reconcile may have written it to a different location, e.g. the vault
+        // root in root-index vaults).
+        await enqueueVaultWrite(vaultDir, () => reconcileIndex(vaultDir));
+        const freshIndexPath = await resolveIndexPath(vaultDir);
+        const content = await fs.readFile(freshIndexPath, 'utf-8');
         return {
           content: [{ type: 'text', text: content }],
         };
@@ -131,9 +135,13 @@ export function createMcpServer(vaultDir: string): McpServer {
     },
     async ({ category, title, content, frontmatter, skipReconcile }) => {
       // Sanitize filename
-      const safeFilename = title.trim().replace(/[\\/:*?"<>|]/g, '-');
+      let safeFilename = title.trim().replace(/[\\/:*?"<>|]/g, '-');
+      // Windows reserved device names cannot be used as filenames
+      if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(safeFilename)) {
+        safeFilename = `_${safeFilename}`;
+      }
       const relativePath = path.join('wiki', category, `${safeFilename}.md`);
-      const targetPath = assertPathContained(vaultDir, relativePath);
+      const targetPath = await assertPathContainedReal(vaultDir, relativePath);
 
       const today = new Date().toISOString().slice(0, 10);
       const fmData: Record<string, any> = {
@@ -171,7 +179,7 @@ export function createMcpServer(vaultDir: string): McpServer {
       if (skipReconcile) {
         indexNote = 'Index reconciliation skipped (skipReconcile=true). Run reconcile once batch is complete.';
       } else {
-        await reconcileIndex(vaultDir);
+        await enqueueVaultWrite(vaultDir, () => reconcileIndex(vaultDir));
       }
 
       return {
@@ -211,29 +219,38 @@ export function createMcpServer(vaultDir: string): McpServer {
       details: z.array(z.string()).optional().describe('List of bullet points detailing changes made'),
     },
     async ({ operation, title, details }) => {
-      const logPath = await resolveLogPath(vaultDir);
-      const today = new Date().toISOString().slice(0, 10);
+      return enqueueVaultWrite(vaultDir, async () => {
+        const logPath = await assertPathContainedReal(vaultDir, await resolveLogPath(vaultDir));
+        const today = new Date().toISOString().slice(0, 10);
 
-      let logEntry = `\n## [${today}] ${operation.trim()} | ${title.trim()}\n`;
-      if (details && details.length > 0) {
-        for (const detail of details) {
-          logEntry += `- ${detail.trim()}\n`;
+        let logEntry = `\n## [${today}] ${operation.trim()} | ${title.trim()}\n`;
+        if (details && details.length > 0) {
+          for (const detail of details) {
+            logEntry += `- ${detail.trim()}\n`;
+          }
         }
-      }
 
-      let existingLog = '';
-      try {
-        existingLog = await fs.readFile(logPath, 'utf-8');
-      } catch {
-        existingLog = '# Wiki Log\n\nAppend-only chronological audit trail.\n';
-      }
+        let logExists = true;
+        try {
+          await fs.access(logPath);
+        } catch {
+          logExists = false;
+        }
 
-      const updatedLog = `${existingLog.trimEnd()}\n${logEntry}`;
-      await atomicWriteFile(logPath, updatedLog);
+        if (logExists) {
+          // Pure append (entry starts with \n so it always lands on a new line);
+          // no read-modify-write cycle that could lose concurrent updates.
+          await fs.mkdir(path.dirname(logPath), { recursive: true });
+          await fs.appendFile(logPath, logEntry, 'utf-8');
+        } else {
+          const header = '# Wiki Log\n\nAppend-only chronological audit trail.\n';
+          await atomicWriteFile(logPath, header + logEntry);
+        }
 
-      return {
-        content: [{ type: 'text', text: `Appended log entry: ## [${today}] ${operation.trim()} | ${title.trim()}` }],
-      };
+        return {
+          content: [{ type: 'text', text: `Appended log entry: ## [${today}] ${operation.trim()} | ${title.trim()}` }],
+        };
+      });
     }
   );
 

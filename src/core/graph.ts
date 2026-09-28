@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { parseMarkdownNote, ParsedNote, Wikilink } from './parser.js';
+import { mapWithConcurrency } from './concurrency.js';
 
 export interface ResolvedLink {
   link: Wikilink;
@@ -36,6 +37,10 @@ export async function scanMarkdownFiles(dir: string, baseDir: string = dir): Pro
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        // Never descend into hidden dirs, dependencies, or immutable raw sources
+        if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'raw') {
+          continue;
+        }
         const subFiles = await scanMarkdownFiles(fullPath, baseDir);
         results.push(...subFiles);
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
@@ -58,35 +63,37 @@ export async function scanMarkdownFiles(dir: string, baseDir: string = dir): Pro
 }
 
 /**
- * Builds the bidirectional link graph of the vault.
+ * Resolves where notes live in a vault: under wiki/ when that directory
+ * exists (even if empty), otherwise the vault root (root-layout vault).
  */
-export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
+export async function resolveVaultNotesRoot(vaultDir: string): Promise<{ notesDir: string; isRootLayout: boolean }> {
   const wikiDir = path.join(vaultDir, 'wiki');
-  let relativeFiles: string[] = [];
-
-  // Notes live under wiki/ when it exists; otherwise fall back to vault root
   try {
     if ((await fs.stat(wikiDir)).isDirectory()) {
-      relativeFiles = await scanMarkdownFiles(wikiDir, vaultDir);
+      return { notesDir: wikiDir, isRootLayout: false };
     }
   } catch {
     // no wiki/ directory
   }
-  if (relativeFiles.length === 0) {
-    relativeFiles = await scanMarkdownFiles(vaultDir, vaultDir);
-  }
+  return { notesDir: vaultDir, isRootLayout: true };
+}
+
+/**
+ * Builds the bidirectional link graph of the vault.
+ */
+export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
+  const { notesDir } = await resolveVaultNotesRoot(vaultDir);
+  const relativeFiles = await scanMarkdownFiles(notesDir, vaultDir);
 
   const parsedNotes: ParsedNote[] = (
-    await Promise.all(
-      relativeFiles.map(async (relFile) => {
-        try {
-          const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
-          return parseMarkdownNote(relFile, content);
-        } catch {
-          return null; // unreadable file — skip rather than fail the whole graph
-        }
-      })
-    )
+    await mapWithConcurrency(relativeFiles, 32, async (relFile) => {
+      try {
+        const content = await fs.readFile(path.join(vaultDir, relFile), 'utf-8');
+        return parseMarkdownNote(relFile, content);
+      } catch {
+        return null; // unreadable file — skip rather than fail the whole graph
+      }
+    })
   ).filter((n): n is ParsedNote => n !== null);
 
   // Lookup tables
@@ -106,6 +113,8 @@ export async function buildVaultGraph(vaultDir: string): Promise<VaultGraph> {
       note.title,
       note.relativePath,
       fullRelNoExt,
+      // Obsidian shortest-path form: [[concepts/Foo]]
+      fullRelNoExt.replace(/^wiki\//, ''),
       ...note.aliases,
     ];
 

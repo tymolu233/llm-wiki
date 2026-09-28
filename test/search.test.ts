@@ -78,4 +78,52 @@ Quantum computers leverage superposition and entanglement to perform complex com
     const results = await searchVault(tempDir, 'nonexistenttermxyz');
     expect(results).toHaveLength(0);
   });
+
+  it('finds notes in a root-layout vault (no wiki/ directory)', async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'llmwiki-rootsearch-test-'));
+    try {
+      await fs.writeFile(path.join(rootDir, 'index.md'), '# Root Index\n', 'utf-8');
+      await fs.writeFile(path.join(rootDir, 'Notes.md'), '# Root Layout Note\nContains rootlayoutneedle.\n', 'utf-8');
+
+      const results = await searchVault(rootDir, 'rootlayoutneedle');
+      expect(results).toHaveLength(1);
+      expect(results[0].relativePath).toBe('Notes.md');
+      expect(results[0].title).toBe('Root Layout Note');
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('includes raw/ sources only when includeRaw is set', async () => {
+    await fs.writeFile(path.join(tempDir, 'raw', 'source.md'), '# Raw Source\nContains rawsourceneedle.\n', 'utf-8');
+
+    const withoutRaw = await searchVault(tempDir, 'rawsourceneedle');
+    expect(withoutRaw).toHaveLength(0);
+
+    const withRaw = await searchVault(tempDir, 'rawsourceneedle', { includeRaw: true });
+    expect(withRaw).toHaveLength(1);
+    expect(withRaw[0].relativePath).toBe('raw/source.md');
+  });
+
+  it('does not crash on non-string frontmatter summary', async () => {
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'concepts', 'listsum.md'),
+      '---\ntitle: "List Summary"\nsummary:\n  - first\n  - second\n---\nContains listsummaryneedle.\n',
+      'utf-8'
+    );
+
+    const results = await searchVault(tempDir, 'listsummaryneedle');
+    expect(results).toHaveLength(1);
+  });
+
+  it('clamps negative limits to zero results', async () => {
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'concepts', 'anything.md'),
+      '# Anything\nContains limitneedle.\n',
+      'utf-8'
+    );
+
+    const results = await searchVault(tempDir, 'limitneedle', { limit: -1 });
+    expect(results).toHaveLength(0);
+  });
 });

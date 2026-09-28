@@ -1,12 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { atomicWriteFile } from './storage.js';
+import { atomicWriteFile, assertPathContainedReal } from './storage.js';
 import {
   AgentTarget,
   ALL_AGENTS,
   detectAgentEnvironments,
   configureAgentRules,
   configureAgentMcp,
+  SkippedMcpConfig,
 } from './agents.js';
 
 export interface InitOptions {
@@ -25,6 +26,7 @@ export interface InitResult {
   skippedFiles: string[];
   configuredAgents: AgentTarget[];
   configuredMcp: string[];
+  skippedMcpConfigs: SkippedMcpConfig[];
 }
 
 export const INDEX_MARKER_START = '<!-- LLMWIKI_INDEX_START -->';
@@ -49,7 +51,7 @@ export async function initVault(options: InitOptions): Promise<InitResult> {
 
   // Helper to safely write a file if it doesn't already exist
   const maybeCreateFile = async (relativePath: string, content: string) => {
-    const fullPath = path.join(vaultDir, relativePath);
+    const fullPath = await assertPathContainedReal(vaultDir, relativePath);
     try {
       await fs.access(fullPath);
       // File already exists
@@ -118,8 +120,11 @@ Append-only chronological audit trail of all knowledge base operations.
 
   // Configure agent MCP configs
   let configuredMcp: string[] = [];
+  let skippedMcpConfigs: SkippedMcpConfig[] = [];
   if (options.configureMcp !== false) {
-    configuredMcp = await configureAgentMcp(vaultDir, targets);
+    const mcpResult = await configureAgentMcp(vaultDir, targets);
+    configuredMcp = mcpResult.updatedFiles;
+    skippedMcpConfigs = mcpResult.skippedConfigs;
   }
 
   return {
@@ -129,5 +134,6 @@ Append-only chronological audit trail of all knowledge base operations.
     skippedFiles,
     configuredAgents: targets,
     configuredMcp,
+    skippedMcpConfigs,
   };
 }

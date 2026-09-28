@@ -72,5 +72,47 @@ The attention mechanism was introduced by [[Vaswani et al]].
     expect(note.sources).toEqual(['raw/transformer.pdf']);
     expect(note.links).toHaveLength(1);
     expect(note.links[0].target).toBe('Vaswani et al');
+    // Frontmatter block spans lines 1-8; the link is on file line 10
+    expect(note.links[0].line).toBe(10);
+  });
+
+  it('ignores Obsidian image embeds ![[file.png]]', () => {
+    const markdown = `# Note
+![[diagram.png]]
+See [[Other Note]] for details.`;
+    const links = extractWikilinks(markdown);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ target: 'Other Note', line: 3 });
+  });
+
+  it('preserves line numbers across multi-line HTML comments', () => {
+    const markdown = `# Title
+<!--
+comment
+-->
+[[Broken Link]]`;
+    const links = extractWikilinks(markdown);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ target: 'Broken Link', line: 5 });
+  });
+
+  it('honors the lineOffset option', () => {
+    const links = extractWikilinks('Body line one\nBody line two with [[Note]]', { lineOffset: 10 });
+    expect(links).toHaveLength(1);
+    expect(links[0].line).toBe(12);
+  });
+
+  it('reports file line numbers for links after a frontmatter block', () => {
+    const raw = '---\ntitle: "Meta"\ntype: concept\n---\nFirst body line with [[Missing]].\n';
+    const note = parseMarkdownNote('wiki/concepts/meta.md', raw);
+    expect(note.links).toHaveLength(1);
+    expect(note.links[0].line).toBe(5);
+  });
+
+  it('falls back to unshifted line numbers when frontmatter parsing fails', () => {
+    const raw = '---\ntitle: [unclosed\n---\nLink on line 4: [[Missing]]\n';
+    const note = parseMarkdownNote('wiki/concepts/broken.md', raw);
+    expect(note.links).toHaveLength(1);
+    expect(note.links[0].line).toBe(4);
   });
 });

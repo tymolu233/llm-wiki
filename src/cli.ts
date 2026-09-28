@@ -10,15 +10,7 @@ import { getVaultStatus, formatVaultStatus } from './core/status.js';
 import { startMcpServer } from './mcp/server.js';
 import { ALL_AGENT_INFOS, ALL_AGENTS, AgentTarget, detectAgentEnvironments } from './core/agents.js';
 import { findVaultRoot } from './core/storage.js';
-
-function getPackageVersion(): string {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
-    return pkg.version || '0.1.0';
-  } catch {
-    return '0.1.0';
-  }
-}
+import { getPackageVersion } from './core/version.js';
 
 export function renderBanner(): void {
   const banner = [
@@ -72,9 +64,11 @@ export async function runCli(argv: string[]): Promise<number> {
           rootIndex = true;
         } else if (arg === '--agent' || arg === '-a') {
           const next = args[++i];
-          if (next) {
-            agentList = next.split(',').map((s) => s.trim().toLowerCase()) as AgentTarget[];
+          if (!next || next.startsWith('-')) {
+            console.error(pc.red(`Error: Option '${arg}' requires a comma-separated value (e.g. --agent cursor,claude)`));
+            return 1;
           }
+          agentList = next.split(',').map((s) => s.trim().toLowerCase()) as AgentTarget[];
         } else if (arg.startsWith('--agent=')) {
           agentList = arg.slice('--agent='.length).split(',').map((s) => s.trim().toLowerCase()) as AgentTarget[];
         } else if (!arg.startsWith('-') && !targetDirArg) {
@@ -168,6 +162,11 @@ export async function runCli(argv: string[]): Promise<number> {
               lines.push(`   ${pc.magenta('>')} MCP:      ${pc.magenta(mcpFile)} ${pc.dim('(stdio server configured)')}`);
             }
           }
+          for (const skipped of result.skippedMcpConfigs) {
+            lines.push(
+              `   ${pc.yellow('!')} Skipped:  ${pc.yellow(skipped.file)} ${pc.dim('(left untouched: could not be parsed)')}`
+            );
+          }
 
           p.note(lines.join('\n'), 'Vault Configuration Summary');
           p.outro(pc.green('LLM Wiki is ready! Open in Obsidian or have your AI agent compile notes.'));
@@ -207,6 +206,11 @@ export async function runCli(argv: string[]): Promise<number> {
               console.log(`  ${pc.cyan('>')} MCP:      ${mcpFile}`);
             }
           }
+          for (const skipped of result.skippedMcpConfigs) {
+            console.log(
+              `  ${pc.yellow('!')} Skipped:  ${skipped.file} ${pc.dim('(left untouched: could not be parsed)')}`
+            );
+          }
           console.log(`\nKnowledge base ready! Open this directory in Obsidian or your favorite editor.\n`);
           return 0;
         } catch (err: any) {
@@ -218,7 +222,12 @@ export async function runCli(argv: string[]): Promise<number> {
 
     case 'status': {
       const isJson = args.includes('--json');
-      const targetDirArg = args.find((a) => !a.startsWith('--') && a !== 'status');
+      const unknownFlags = args.slice(1).filter((a) => a.startsWith('-') && a !== '--json');
+      if (unknownFlags.length > 0) {
+        console.error(pc.red(`Error: Unknown flag(s) for 'status': ${unknownFlags.join(', ')}`));
+        return 1;
+      }
+      const targetDirArg = args.slice(1).find((a) => !a.startsWith('-'));
       const targetDir = await findVaultRoot(targetDirArg ? path.resolve(targetDirArg) : process.cwd());
 
       try {
@@ -236,6 +245,10 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'lint': {
+      if (args[1] && args[1].startsWith('-')) {
+        console.error(pc.red(`Error: Unknown flag for 'lint': ${args[1]}`));
+        return 1;
+      }
       const rawTarget = args[1] ? path.resolve(args[1]) : process.cwd();
       const targetDir = await findVaultRoot(rawTarget);
       try {
@@ -250,6 +263,10 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'index': {
+      if (args[1] && args[1].startsWith('-')) {
+        console.error(pc.red(`Error: Unknown flag for 'index': ${args[1]}`));
+        return 1;
+      }
       const rawTarget = args[1] ? path.resolve(args[1]) : process.cwd();
       const targetDir = await findVaultRoot(rawTarget);
       try {
@@ -275,7 +292,8 @@ export async function runCli(argv: string[]): Promise<number> {
       }
 
       const isJson = args.includes('--json');
-      const rawTarget = args[2] && !args[2].startsWith('--') ? path.resolve(args[2]) : process.cwd();
+      const pathArg = args.slice(2).find((a) => !a.startsWith('-'));
+      const rawTarget = pathArg ? path.resolve(pathArg) : process.cwd();
       const targetDir = await findVaultRoot(rawTarget);
 
       try {
@@ -304,7 +322,23 @@ export async function runCli(argv: string[]): Promise<number> {
     }
 
     case 'mcp': {
-      const rawTarget = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : process.cwd();
+      const hasExplicitPath = Boolean(args[1] && !args[1].startsWith('-'));
+      const rawTarget = hasExplicitPath ? path.resolve(args[1]) : process.cwd();
+
+      if (hasExplicitPath) {
+        // Validate the explicit vault path before touching the server
+        let stat: fs.Stats | undefined;
+        try {
+          stat = fs.statSync(rawTarget);
+        } catch {
+          stat = undefined;
+        }
+        if (!stat?.isDirectory()) {
+          console.error(pc.red(`Error: MCP vault path does not exist or is not a directory: ${rawTarget}`));
+          return 1;
+        }
+      }
+
       const targetDir = await findVaultRoot(rawTarget);
       try {
         await startMcpServer(targetDir);

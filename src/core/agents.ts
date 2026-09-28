@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { atomicWriteFile } from './storage.js';
+import { atomicWriteFile, assertPathContainedReal } from './storage.js';
 
 export type AgentTarget = 'claude' | 'cursor' | 'windsurf' | 'agents' | 'gemini' | 'cline' | 'copilot' | 'zed' | 'continue';
 
@@ -307,6 +307,8 @@ export function stripJsonComments(jsonString: string): string {
 
 /**
  * Merges a server definition into an existing or new MCP configuration JSON string.
+ * Throws when existing non-empty content cannot be parsed (even after comment
+ * stripping), so callers can skip the write instead of destroying user data.
  */
 export function mergeMcpConfig(existingContent: string, serverName: string, serverDef: any, containerKey: string = 'mcpServers'): string {
   let config: any = {};
@@ -317,7 +319,7 @@ export function mergeMcpConfig(existingContent: string, serverName: string, serv
       try {
         config = JSON.parse(stripJsonComments(existingContent));
       } catch {
-        config = {};
+        throw new Error('Existing MCP configuration is not valid JSON/JSONC and could not be parsed');
       }
     }
   }
@@ -338,11 +340,24 @@ export function mergeMcpConfig(existingContent: string, serverName: string, serv
   return JSON.stringify(config, null, 2) + '\n';
 }
 
+export interface SkippedMcpConfig {
+  file: string;
+  reason: string;
+}
+
+export interface AgentMcpResult {
+  updatedFiles: string[];
+  skippedConfigs: SkippedMcpConfig[];
+}
+
 /**
  * Configures local project-level MCP server configurations for supported agents.
+ * Config files that already exist but cannot be parsed are left untouched and
+ * reported via `skippedConfigs` instead of being overwritten.
  */
-export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]): Promise<string[]> {
+export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]): Promise<AgentMcpResult> {
   const updatedFiles: string[] = [];
+  const skippedConfigs: SkippedMcpConfig[] = [];
 
   const defaultLlmwikiMcpDef = {
     command: 'npx',
@@ -354,7 +369,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
     containerKey: string = 'mcpServers',
     customDef: any = defaultLlmwikiMcpDef
   ) => {
-    const fullPath = path.join(vaultDir, relPath);
+    const fullPath = await assertPathContainedReal(vaultDir, relPath);
     let existingContent = '';
     try {
       existingContent = await fs.readFile(fullPath, 'utf-8');
@@ -362,7 +377,13 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
       existingContent = '';
     }
 
-    const merged = mergeMcpConfig(existingContent, 'llmwiki', customDef, containerKey);
+    let merged: string;
+    try {
+      merged = mergeMcpConfig(existingContent, 'llmwiki', customDef, containerKey);
+    } catch (err: any) {
+      skippedConfigs.push({ file: relPath.replace(/\\/g, '/'), reason: err.message });
+      return;
+    }
     await atomicWriteFile(fullPath, merged);
     updatedFiles.push(relPath.replace(/\\/g, '/'));
   };
@@ -383,7 +404,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
 
     // Antigravity (agy / IDE) plugin auto-discovery
     const pluginManifestRelPath = '.agents/plugins/llmwiki/plugin.json';
-    const pluginManifestFullPath = path.join(vaultDir, pluginManifestRelPath);
+    const pluginManifestFullPath = await assertPathContainedReal(vaultDir, pluginManifestRelPath);
     try {
       await fs.access(pluginManifestFullPath);
     } catch {
@@ -432,7 +453,7 @@ export async function configureAgentMcp(vaultDir: string, targets: AgentTarget[]
 
   // 9. Continue.dev: .continue/mcpServers/llmwiki.yaml
   if (targets.includes('continue')) {
-    const continueYamlPath = path.join(vaultDir, '.continue', 'mcpServers', 'llmwiki.yaml');
+    const continueYamlPath = await assertPathContainedReal(vaultDir, path.join('.continue', 'mcpServers', 'llmwiki.yaml'));
     const continueYaml = `name: llmwiki
 version: 0.1.0
 schema: v1
@@ -448,5 +469,5 @@ mcpServers:
     updatedFiles.push('.continue/mcpServers/llmwiki.yaml');
   }
 
-  return Array.from(new Set(updatedFiles));
+  return { updatedFiles: Array.from(new Set(updatedFiles)), skippedConfigs };
 }

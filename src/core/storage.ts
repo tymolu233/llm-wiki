@@ -19,6 +19,83 @@ export function assertPathContained(baseDir: string, targetPath: string): string
   return resolvedTarget;
 }
 
+const realBaseDirCache = new Map<string, Promise<string>>();
+
+/**
+ * Resolves the real (canonical, symlink-free) path of `baseDir`.
+ * Results are cached per resolved base directory string.
+ */
+function realpathBaseDir(resolvedBase: string): Promise<string> {
+  let cached = realBaseDirCache.get(resolvedBase);
+  if (!cached) {
+    cached = fs.realpath(resolvedBase);
+    cached.catch(() => realBaseDirCache.delete(resolvedBase));
+    realBaseDirCache.set(resolvedBase, cached);
+  }
+  return cached;
+}
+
+/**
+ * Finds the nearest existing ancestor of `targetPath` (the path itself if it
+ * exists, otherwise a parent directory) along with the non-existent suffix
+ * below it.
+ */
+async function findExistingAncestor(targetPath: string): Promise<{ existing: string; suffix: string }> {
+  let current = targetPath;
+  let suffix = '';
+  while (true) {
+    try {
+      await fs.lstat(current);
+      return { existing: current, suffix };
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return { existing: current, suffix };
+      }
+      suffix = suffix ? path.join(path.basename(current), suffix) : path.basename(current);
+      current = parent;
+    }
+  }
+}
+
+/**
+ * Like `assertPathContained`, but additionally follows symlinks/junctions:
+ * the real path of the nearest existing ancestor of the target must keep the
+ * target inside the real base directory. Prevents vault writes from escaping
+ * through a symlinked vault subdirectory. Returns the ORIGINAL resolved
+ * absolute target so callers keep their current paths.
+ */
+export async function assertPathContainedReal(baseDir: string, targetPath: string): Promise<string> {
+  const resolvedTarget = assertPathContained(baseDir, targetPath);
+  const realBase = await realpathBaseDir(path.resolve(baseDir));
+
+  // Follow links through the nearest existing ancestor, then re-attach the
+  // suffix that does not exist yet (the destination of the future write).
+  const { existing, suffix } = await findExistingAncestor(resolvedTarget);
+  const realAncestor = await fs.realpath(existing);
+  const realTarget = suffix ? path.join(realAncestor, suffix) : realAncestor;
+
+  // Verify the real target is still inside the real base (Windows compares
+  // case-insensitively).
+  const baseForCompare = process.platform === 'win32' ? realBase.toLowerCase() : realBase;
+  const targetForCompare = process.platform === 'win32' ? realTarget.toLowerCase() : realTarget;
+  const relative = path.relative(baseForCompare, targetForCompare);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path traversal detected: "${targetPath}" escapes base directory "${baseDir}"`);
+  }
+
+  return resolvedTarget;
+}
+
+/**
+ * Atomically writes `content` to `relativePath` within `baseDir`, verifying
+ * both string-level and symlink-aware containment first.
+ */
+export async function safeWriteFileWithin(baseDir: string, relativePath: string, content: string): Promise<void> {
+  const targetPath = await assertPathContainedReal(baseDir, relativePath);
+  await atomicWriteFile(targetPath, content);
+}
+
 /**
  * Atomically writes content to `filePath` by writing to a temporary file
  * in the same directory and renaming it, preventing corrupt/half-written files.
@@ -49,6 +126,30 @@ export async function atomicWriteFile(filePath: string, content: string): Promis
 export async function safeReadFile(baseDir: string, relativePath: string): Promise<string> {
   const targetPath = assertPathContained(baseDir, relativePath);
   return await fs.readFile(targetPath, 'utf-8');
+}
+
+const vaultWriteQueues = new Map<string, Promise<void>>();
+
+/**
+ * Serializes asynchronous vault write operations per key (typically a vault
+ * directory) by chaining them on a per-key promise queue. Concurrent calls
+ * run one after another in invocation order, preventing interleaved
+ * read-modify-write cycles from losing updates.
+ */
+export function enqueueVaultWrite<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const previous = vaultWriteQueues.get(key) ?? Promise.resolve();
+  const next = previous.then(fn);
+  const tail = next.then(
+    () => undefined,
+    () => undefined
+  );
+  vaultWriteQueues.set(key, tail);
+  void tail.then(() => {
+    if (vaultWriteQueues.get(key) === tail) {
+      vaultWriteQueues.delete(key);
+    }
+  });
+  return next;
 }
 
 /**

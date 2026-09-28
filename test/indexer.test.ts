@@ -77,6 +77,21 @@ Compares [[Raft]] and Paxos.`,
     expect(indexContent).toContain('| [[Consensus Survey]] | Comparison of consensus protocols | 0 | 2026-04-03 |');
   });
 
+  it('renders unquoted YAML date frontmatter as an ISO date string', async () => {
+    // js-yaml parses unquoted dates into Date objects — the table must show YYYY-MM-DD
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'concepts', 'Dated.md'),
+      '---\ntitle: "Dated"\ntype: concept\nsummary: "Date check"\nlast_updated: 2026-09-18\n---\nBody.\n',
+      'utf-8'
+    );
+
+    await reconcileIndex(tempDir);
+    const indexPath = await resolveIndexPath(tempDir);
+    const indexContent = await fs.readFile(indexPath, 'utf-8');
+    expect(indexContent).toContain('| [[Dated]] | Date check | 0 | 2026-09-18 |');
+    expect(indexContent).not.toMatch(/GMT|00:00:00/);
+  });
+
   it('preserves custom user content outside markers', async () => {
     const indexPath = await resolveIndexPath(tempDir);
     const customHeader = `# My Personal Knowledge Base\n\n> "Knowledge is compound interest." - Naval Ravikant\n\nHere are my favorite pinned topics.\n\n`;
